@@ -1,6 +1,6 @@
 import collections
 import numpy as np
-import grl.utilities
+import grl
 
 class HistoryManager:
 
@@ -25,8 +25,8 @@ class HistoryManager:
         self.t = start_timestep + len(history)
 
     def extendHistory(self, elem, is_complete=True):
-        # the type of the elem can be different for each manager
-        # in a standard grl framework, it is a (a,e) tuple
+        # the type of elem can be different for each manager
+        # in a standard grl framework, it is a tuple of (a,e)
         self.part.append(elem)
         if is_complete:
             elem = tuple(self.part)
@@ -36,57 +36,86 @@ class HistoryManager:
 
 class PerceptManager:
 
-    def __init__(self, emission_matrix=[], labels=None):
-        self.E = emission_matrix
-        self.labels = labels
+    def __init__(self, emission_func=lambda s : s, label_func=lambda s: s, inv_label_func=lambda s: s):
+        self.E = emission_func
+        self.l = label_func
+        self.inv_l = inv_label_func
 
-    def setEmissionMatrix(self, emission_matrix):
-        self.E = emission_matrix
+    def setEmissionFunction(self, emission_func):
+        self.E = emission_func
     
-    def setLabels(self, labels):
-        self.labels = labels
-    
-    def getLabels(self):
-        return self.labels
+    def setLabelFunctions(self, label_func, inv_label_func):
+        self.l = label_func
+        self.inv_l = inv_label_func
 
-    def getEmissionMatrix(self):
+    def getLabelFunctions(self):
+        return (self.l, self.inv_l)
+
+    def getEmissionFunction(self):
         return self.E
 
-    def getPercept(self, state):
-        e = grl.utilities.sample(self.E[state,:])
-        if self.labels:
-            e = self.labels[e]
+    def getPercept(self, state_l):
+        return self.l(self.perception(self.inv_l(state_l)))
+
+    def perception(self, state):
+        # WARNING! This part of the code is not robust enough.
+        # assuming a 'valid' emission function
+        if callable(self.E):
+            e = self.inv_l(self.E(self.l(state)))
+        # assuming a 'valid' emission kernel
+        elif len(np.shape(self.E)) == 2:
+            e = grl.utilities.sample(self.E[state,:])
+        else:
+            raise RuntimeError("No valid percept function is provided.")
         return e
 
 
 class StateManager:
     
-    def __init__(self, start_state=0, transition_matrix=[], labels=None):
-        self.T = transition_matrix
-        self.s = start_state
-        self.labels = labels
+    def __init__(self, transition_func=lambda s,a: s, start_state_l=0, label_func=lambda s: s, inv_label_func=lambda s: s):
+        self.T = transition_func
+        self.l = label_func
+        self.inv_l = inv_label_func
+        # WARNING! This part of the code is not robust enough.
+        # assuming 0 is a 'valid' labled state
+        self.s = self.inv_l(start_state_l)
         
     def getCurrentState(self):
-        s = self.s
-        if self.labels:
-            s = self.labels[s]
-        return s
+        return self.l(self.s)
 
-    def setCurrentState(self, state):
-        self.s = state
+    def setCurrentState(self, state_l):
+        self.s = self.inv_l(state_l)
 
-    def setLabels(self, labels):
-        self.labels = labels
+    def setLabelFunctions(self, label_func, inv_label_func):
+        self.l = label_func
+        self.inv_l = inv_label_func
     
-    def getLabels(self):
-        return self.labels
+    def getLabelFunctions(self):
+        return (self.l, self.inv_l)
 
-    def setTransitionMatrix(self, transition_matrix):
-        self.T = transition_matrix
+    def setTransitionFunction(self, transition_func):
+        self.T = transition_func
 
-    def getTransitionMatrix(self):
+    def getTransitionFunction(self):
         return self.T
 
-    def makeTransition(self, action):
-        self.s = grl.utilities.sample(self.T[action,self.s,:])
+    def getNextState(self, action, state_l):
+        return self.l(self.simulate(action, self.inv_l(state_l)))
+
+    def simulate(self, action, state=None):
+        if not state:
+            state = self.s
+        # WARNING! This part of the code is not robust enough.
+        # assuming a 'valid' transition function
+        if callable(self.T): 
+            s = self.inv_l(self.T(self.l(state), action))
+        # assuming a 'valid' probability kernel
+        elif len(np.shape(self.T)) == 3: 
+            s = grl.utilities.sample(self.T[action,state,:])
+        else:
+            raise RuntimeError("No valid transition function is provided.")
+        return s
+
+    def transit(self, action):
+        self.s = self.simulate(action)
         return self.s
