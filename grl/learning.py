@@ -2,7 +2,26 @@ import grl
 import collections
 import numpy as np
 
-class Storage(collections.MutableMapping):
+
+# inspired from https://gist.github.com/KyleJamesWalker/8573350
+class Storage(collections.defaultdict):
+    def __init__(self, dimensions=2, default=lambda: np.random.random_sample(), root=True):
+        self.root = root
+        self.dims = dimensions
+        if self.dims > 1:
+            internal_default = lambda: Storage(self.dims - 1, default, False)
+        else:
+            internal_default = default
+        collections.defaultdict.__init__(self, internal_default)
+
+    def __repr__(self):
+        if self.root:
+            return "NestedDefaultDict(%d): {%s}" % (self.dims,
+                                                    collections.defaultdict.__repr__(self))
+        else:
+            return collections.defaultdict.__repr__(self)
+
+class StorageOld(collections.MutableMapping):
 
     # MAX, ARGMAX, MIN, ARGMIN, USER_FUNC (v2)
     # >>> f[s].argmax()
