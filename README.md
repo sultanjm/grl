@@ -1,2 +1,2 @@
 # grl-framework
-A general reinforcement learning (GRL) framework.
+This is a generic reinforcement learning framework. At the moment, only finite action spaces are allowed.

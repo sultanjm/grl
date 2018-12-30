@@ -4,10 +4,11 @@ import grl
 
 class HistoryManager:
 
-    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None):
+    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None, history_to_state_map=lambda h: h):
         self.MAX_LENGTH = MAX_LENGTH
         self.h = collections.deque(history, MAX_LENGTH)
         self.t = start_timestep + len(history)
+        self.h2s_map = history_to_state_map
         self.part = []
         
     def getHistory(self):
@@ -33,6 +34,11 @@ class HistoryManager:
             self.part.clear()
             self.h.append(elem)
             self.t += 1
+    
+    def getMappedState(self, h=None):
+        if not h:
+            h = self.h
+        return self.h2s_map(h)
 
 class PerceptManager:
 
@@ -119,3 +125,34 @@ class StateManager:
     def transit(self, action):
         self.s = self.simulate(action)
         return self.s
+
+
+class ActionManager:
+
+    def __init__(self, actions_l=[0], label_func=lambda a: a, inv_label_func=lambda a: a):
+        self.l = label_func
+        self.inv_l = inv_label_func
+        self.actions_l = actions_l
+        self.actions = [self.inv_l(a_l) for a_l in actions_l]
+
+    def getActions(self):
+        return self.actions_l
+
+    def setActions(self, actions_l):
+        self.actions_l = actions_l
+        self.actions = [self.inv_l(a_l) for a_l in actions_l]
+
+
+class RewardManager:
+
+    def __init__(self, reward_func=lambda s_l, a_l, s_nxt_l, e_nxt_l, h: 0):
+        self.r_func = reward_func
+
+    def setRewardFunction(self, reward_func):
+        self.r_func = reward_func
+    
+    def getRewardFunction(self):
+        return self.r_func
+
+    def r(self, s_l, a_l, s_nxt_l=None, e_nxt_l=None, h=None):
+        return self.r_func(s_l, a_l, s_nxt_l, e_nxt_l, h)

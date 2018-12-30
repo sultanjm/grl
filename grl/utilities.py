@@ -1,4 +1,5 @@
 import numpy as np
+import enum
 
 def sample(p_row):
     return np.random.choice(len(p_row), p=p_row)
