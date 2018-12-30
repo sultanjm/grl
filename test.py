@@ -51,18 +51,18 @@ class GreedyQAgent(grl.foundations.Agent):
 
     def setup(self):
         self.Q = grl.learning.Storage()
-        self.alpha = grl.learning.Storage(default_value_range = 0.99)
+        self.alpha = grl.learning.Storage(default=lambda: 0.99)
 
-    # def update(self, event):
-    #     # event in the shape of (h,a,e,s)
-    #     e = self.pm.inv_l(event.e_l)
-    #     h = self.hm.getHistory()
-    #     a = self.am.inv_l(event.a_l)
-    #     s = self.sm.getCurrentState()
-    #     nxt_s = self.map.state(history(h,a,e))
-
-    #     self.Q[s] = self.Q.get((s,a), 0) + self.alpha.get((s,a), 0) * (self.Q.get((s,a), 0) - np.max(self.Q(nxt_s, :)))
-    #     self.Q.update(s,a)
+    def update(self, event):
+        # event in the shape of (h,a,e,s)
+        e = self.pm.inv_l(event.e_l)
+        h = self.hm.getHistory()
+        a = self.am.inv_l(event.a_l)
+        s = self.sm.getCurrentState()
+        nxt_s = s #self.map.state(history(h,a,e))
+    
+        self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (self.Q[s][a] - self.Q[nxt_s].max())
+        self.alpha[s][a] = self.alpha[s][a] ** 2
 
 
     #     self.Q()
@@ -72,11 +72,9 @@ class GreedyQAgent(grl.foundations.Agent):
         # should be able to update the function
         # func.update()
 
-    # def act(self):
-    #     return self.am.l(np.argmax(self.Q[self.sm.s,:]))
+    def act(self):
+        return self.Q[self.sm.s].argmax()
     
-    def learn(self):
-        pass
 
 
 ##############################################################

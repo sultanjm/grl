@@ -36,13 +36,14 @@ class Storage(collections.MutableMapping):
             if not self.root:
                 self.root = self
             if self.dims > 1:
-                v = Storage(self.dims - 1, self.default, self.persist, root=self.root)
+                v = Storage(dims=self.dims - 1, default=self.default, persist=self.persist, root=self.root)
                 self.storage[key] = v # pretending that the storage is persistent
             else:
                 v = self.default()
                 if not self.persist:
                     # a non-existent value is accessed in a non-persistent storage
                     self.root.storage.clear()
+                    # check for a memory leak!
                     del self.root
                 else:
                     self.storage[key] = v # store the newly generated default value
@@ -87,36 +88,3 @@ class Storage(collections.MutableMapping):
 
     def __repr__(self):
         return dict.__repr__(self.storage)
-
-class StateActionFunction:
-    def __init__(self, state_mgr=None, action_mgr=None, initial_value=None):
-        if isinstance(state_mgr, grl.managers.StateManager):
-            self.sm = state_mgr
-        else:
-            self.sm = grl.managers.StateManager()
-        if isinstance(action_mgr, grl.managers.ActionManager):
-            self.sm = action_mgr
-        else:
-            self.sm = grl.managers.ActionManager()
-        self.init_value = initial_value
-        self.v = dict()
-        
-    
-    def update(self, s_l, a_l):
-        pass
-
-class HistoryActionFunction:
-    def __init__(self):
-        pass
-
-class StateFunction:
-    def __init__(self):
-        pass
-
-class ActionFunction:
-    def __init__(self):
-        pass
-
-class HistoryFunction:
-    def __init__(self):
-        pass
