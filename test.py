@@ -96,7 +96,22 @@ class GreedyQAgent(grl.foundations.Agent):
 
 #     print(history_mgr.getHistory())
 
-a = grl.learning.Storage()
-print(a[1])
-print(a[1][2])
-print(a[2][2])
+a = grl.learning.Storage(dims=3, persist=False)
+print(a[3][1][2] != a[3][1][2])
+print(a[2][1][1] != a[2][1][1])
+a[1][3][4] = 1.5
+print(a[1][3][4] == 1.5)
+print(a[1][3].max() == 1.5)
+print(a[1][3].argmax() == 4)
+print(len(a) == 1)
+
+b = grl.learning.Storage(persist=True)
+print(b[1][1] == b[1][1])
+print(b[2][1] == b[2][1])
+b[1][3] = 1.5
+print(b[1][3] == 1.5)
+print(b[1].max() == 1.5)
+print(b[1].argmax() == 3)
+print(len(b) == 2)
+
+

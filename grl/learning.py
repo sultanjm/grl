@@ -2,26 +2,7 @@ import grl
 import collections
 import numpy as np
 
-
-# inspired from https://gist.github.com/KyleJamesWalker/8573350
-class Storage(collections.defaultdict):
-    def __init__(self, dimensions=2, default=lambda: np.random.random_sample(), root=True):
-        self.root = root
-        self.dims = dimensions
-        if self.dims > 1:
-            internal_default = lambda: Storage(self.dims - 1, default, False)
-        else:
-            internal_default = default
-        collections.defaultdict.__init__(self, internal_default)
-
-    def __repr__(self):
-        if self.root:
-            return "NestedDefaultDict(%d): {%s}" % (self.dims,
-                                                    collections.defaultdict.__repr__(self))
-        else:
-            return collections.defaultdict.__repr__(self)
-
-class StorageOld(collections.MutableMapping):
+class Storage(collections.MutableMapping):
 
     # MAX, ARGMAX, MIN, ARGMIN, USER_FUNC (v2)
     # >>> f[s].argmax()
@@ -36,16 +17,14 @@ class StorageOld(collections.MutableMapping):
     # if v > old_max:
     #   old_max = v
 
-    def __init__(self, data=None, default_value_range=(0,1)):
-        self.storage = collections.defaultdict(self.default_value_func)
-        self.value_range = default_value_range
-        self.parent_key = None
+    def __init__(self, dims=2, default=lambda: np.random.random_sample(), persist=False, data=None, root=None):
+        self.dims = dims
+        self.default = default
+        self.storage = {}
+        self.persist = persist
+        self.root = root
         if data:
             self.update(data)
-        
-    def default_value_func(self):
-        print("I am asked to give a default value.")
-        return dict()
 
     def __setitem__(self, key, value): 
         self.storage[key] = value
@@ -54,8 +33,19 @@ class StorageOld(collections.MutableMapping):
         try:
             return self.storage[key]
         except KeyError:
-            v = self.default_value()
-            self.storage[key] = v # store the newly generated default value
+            if not self.root:
+                self.root = self
+            if self.dims > 1:
+                v = Storage(self.dims - 1, self.default, self.persist, root=self.root)
+                self.storage[key] = v # pretending that the storage is persistent
+            else:
+                v = self.default()
+                if not self.persist:
+                    # a non-existent value is accessed in a non-persistent storage
+                    self.root.storage.clear()
+                    del self.root
+                else:
+                    self.storage[key] = v # store the newly generated default value
             return v
 
     def __delitem__(self, key):
@@ -70,20 +60,33 @@ class StorageOld(collections.MutableMapping):
     def __len__(self):
         return len(self.storage)
 
-    def max(self, key=None):
-        return max(self.storage[key].values(), default=self.default_value())
+    def max(self):
+        if self.dims == 1:
+            return max(self.values(), default=self.default())
+        else:
+            return None
     
-    def min(self, key=None):
-        return min(self.storage[key].values(), default=self.default_value())
+    def argmax(self):
+        if self.dims == 1:
+            # what is the default action when there is no element
+            return max(self, key=self.get, default=self.default())
+        else:
+            return None
+
+    def min(self):
+        if self.dims == 1:
+            return min(self.values(), default=self.default())
+        else:
+            return None
     
-    def argmax(self, key=None):
-        return max(self.storage[key], key=self.storage[key].get, default=self.default_value())
-    
-    def argmin(self, key):
-        return min(self.storage[key], key=self.storage[key].get, default=self.default_value())
-    
-    def default_value(self, key=None):
-        return  (max(self.value_range) - min(self.value_range)) * np.random.random_sample() + min(self.value_range)
+    def argmin(self):
+        if self.dims == 1:
+            return min(self, key=self.get, default=self.default())
+        else:
+            return None
+
+    def __repr__(self):
+        return dict.__repr__(self.storage)
 
 class StateActionFunction:
     def __init__(self, state_mgr=None, action_mgr=None, initial_value=None):
