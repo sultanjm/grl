@@ -50,30 +50,30 @@ class RandomAgent(grl.foundations.Agent):
 class GreedyQAgent(grl.foundations.Agent):
 
     def setup(self):
-        self.Q = grl.learning.Storage()
-        self.alpha = grl.learning.Storage(default=lambda: 0.99)
+        self.Q = grl.learning.Storage(default_val=lambda: self.params.init.Q) # optimistic initialization
+        self.alpha = grl.learning.Storage(default_val=lambda: self.params.init.alpha) # initial learning rate
 
-    def update(self, event):
-        # event in the shape of (h,a,e,s)
-        e = self.pm.inv_l(event.e_l)
-        h = self.hm.getHistory()
-        a = self.am.inv_l(event.a_l)
-        s = self.sm.getCurrentState()
-        nxt_s = s #self.map.state(history(h,a,e))
+    # def update(self, event):
+    #     # event in the shape of (h,a,e,s)
+    #     e = self.pm.inv_l(event.e_l)
+    #     h = self.hm.getHistory()
+    #     a = self.am.inv_l(event.a_l)
+    #     s = self.sm.getCurrentState()
+    #     nxt_s = s #self.map.state(history(h,a,e))
     
-        self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (self.Q[s][a] - self.Q[nxt_s].max())
-        self.alpha[s][a] = self.alpha[s][a] ** 2
+    #     self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (self.Q[s][a] - self.Q[nxt_s].max())
+    #     self.alpha[s][a] = self.alpha[s][a] ** 2
 
 
-    #     self.Q()
+    # #     self.Q()
 
 
-        # should be able to perfrom EXPECTED, MAX and SOFTMAX on self.q
-        # should be able to update the function
-        # func.update()
+    #     # should be able to perfrom EXPECTED, MAX and SOFTMAX on self.q
+    #     # should be able to update the function
+    #     # func.update()
 
-    def act(self):
-        return self.Q[self.sm.s].argmax()
+    # def act(self):
+    #     return self.Q[self.sm.s].argmax()
     
 
 
@@ -105,11 +105,12 @@ print(len(a) == 1)
 
 b = grl.learning.Storage(persist=True)
 print(b[1][1] == b[1][1])
-print(b[2][1] == b[2][1])
+print(b[2][(1,2)] == b[2][(1,2)])
 b[1][3] = 1.5
 print(b[1][3] == 1.5)
 print(b[1].max() == 1.5)
 print(b[1].argmax() == 3)
 print(len(b) == 2)
-
+print(b[5].argmax())
+print(b[7].argmin())
 
