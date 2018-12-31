@@ -10,13 +10,10 @@ class GRLObject(abc.ABC):
             self.hm = history_mgr
         else:
             self.hm = grl.managers.HistoryManager()
-        # WARNING! This part of the code is not robust enough.
-        # assuming 0 is a 'valid' labled state
-        self.sm = grl.managers.StateManager(self.transition_func, 0, self.state_label_func, self.state_inv_label_func)
-        # assuming 0 is a 'valid' labled action
-        self.am = grl.managers.ActionManager([0], self.action_label_func, self.action_inv_label_func)
-        self.pm = grl.managers.PerceptManager(self.emission_func, self.percept_label_func, self.percept_inv_label_func)
-        self.rm = grl.managers.RewardManager(self, self.reward_func)
+        self.sm = grl.managers.StateManager(self.transition_func)
+        self.am = grl.managers.ActionManager()
+        self.pm = grl.managers.PerceptManager(self.emission_func)
+        self.rm = grl.managers.RewardManager(self.reward_func)
         self.setup()
     
     def stats(self):
@@ -29,51 +26,23 @@ class GRLObject(abc.ABC):
         pass
 
     # default: same state transition loop
-    def transition_func(self, s_l, a_l):
-        return s_l
+    def transition_func(self, s, a):
+        return s
 
     # default: identity emission function
-    def emission_func(self, s_l):
-        return s_l
+    def emission_func(self, s):
+        return s
 
     # default: zero reward function
-    def reward_func(self, s_l, a_l, s_nxt_l=None, e_nxt_l=None, h=None):
+    def reward_func(self, s, a, s_nxt=None, e_nxt=None, h=None):
         return 0
-
-    # default: identity state label function
-    def state_label_func(self, s):
-        return s
-    
-    # default: identity inverse state label function
-    def state_inv_label_func(self, s_l):
-        return s_l
-
-    # default: identity percept label function
-    def percept_label_func(self, e):
-        return e
-    
-    # default: identity inverse percept label function
-    def percept_inv_label_func(self, e_l):
-        return e_l
-    
-    # default: identity action label function
-    def action_label_func(self, a):
-        return a
-
-    # default: identity inverse action label function
-    def action_inv_label_func(self, a_l):
-        return a_l
-
 
 class Domain(GRLObject):
         
-    # default: a standard Partially Observed Markov Decision Problem (POMDP) implementation if the default emission_func is overloaded
-    # otherwise, this is a standared Markov Decision Problem (MDP) react function
     @abc.abstractmethod
-    def react(self, action_l):
-        e_l = self.pm.l(self.pm.perception(self.sm.transit(self.am.inv_l(action_l))))
-        self.hm.extendHistory(e_l, is_complete=True)
-        return e_l
+    def react(self, action):
+        pass
+
 
 class Agent(GRLObject):
    
@@ -87,5 +56,5 @@ class Agent(GRLObject):
         self.reset()  
 
     @abc.abstractmethod
-    def act(self):
+    def act(self, percept=None):
         pass 

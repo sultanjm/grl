@@ -9,6 +9,8 @@ class Storage(collections.MutableMapping):
     # 'a1'
     # >>> f[s].min()
     # 0
+    # >>> f[s].expectation(prob)
+    # 0.5
     # >>> f[s].user_func()
 
     # the user function must have an incremental update structure
@@ -108,6 +110,19 @@ class Storage(collections.MutableMapping):
             return min(self, key=self.get, default=self.default_arg())
         else:
             return None
+
+    def expectation(self, dist=None):
+        if self.dimensions == 1:
+            if not isinstance(dist, dict) or not np.isclose(sum(dist.values()), 1.0):
+                keys = self.storage.keys()
+                if keys:
+                    dist = dict.fromkeys(keys, 1/len(keys))
+                else:
+                    return self.default_val()
+            return sum([dist[key]*self.storage.get(key, self.default_val()) for key in dist.keys()])
+        else:
+            return None
+
 
     def __repr__(self):
         return dict.__repr__(self.storage)
