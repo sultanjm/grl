@@ -11,6 +11,7 @@ class Storage(collections.MutableMapping):
     default_values -- range of initial values as (min, max) (default (0,1))
     default_arguments -- list of default arguments (default None)
     persist -- persist the accessed-initialized variable (default True)
+    compute_statistics -- enable statistics computation (default False)
     data -- set any initial data (default None)
 
     """
@@ -27,10 +28,11 @@ class Storage(collections.MutableMapping):
         self.default_arguments = self.kwargs.get('default_arguments', None)
 
         self.compute_statistics = self.kwargs.get('compute_statistics', False)
-        self.max = self.default_val()
-        self.min = self.default_val()
-        self.argmax = self.default_arg()
-        self.argmin = self.default_arg()
+        if self.compute_statistics:
+            self.max = max(self.default_values)
+            self.min = min(self.default_values)
+            self.argmax = None if not self.default_arguments else self.default_arguments[0]
+            self.argmin = None if not self.default_arguments else self.default_arguments[-1]    
 
         if data:
             self.update(data)
@@ -82,17 +84,11 @@ class Storage(collections.MutableMapping):
         return dict.__repr__(self.storage)
 
     def update_statistics(self, key, value):
-        if value > self.max:
-            self.max = value
-            self.argmax = key
+        if self.max == self[self.argmax] and value > self.max: # an existant max value
+            self.argmax, self.max = key, value
 
-        # random argmax is 
-
-
-
-        if value < self.min:
-            self.min = value
-            self.argmin = key
+        if self.min == self[self.argmin] and value < self.min: # an existant min value
+            self.argmin, self.min = key, value
 
     def default_val(self):
         return (max(self.default_values) - min(self.default_values)) * np.random.sample() + min(self.default_values)

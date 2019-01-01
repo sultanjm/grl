@@ -9,7 +9,7 @@ class BlindMaze(grl.foundations.Domain):
         return e
 
     def setup(self):
-        self.maze_len = self.kwargs.get('maze_len', 2)
+        self.maze_len = self.kwargs.get('maze_len', 4)
         self.sm.states = [(x,y) for x in range(self.maze_len) for y in range(self.maze_len)]
         self.am.actions = ['u', 'd', 'l', 'r']
         self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
@@ -29,13 +29,13 @@ class BlindMaze(grl.foundations.Domain):
     
     def emission_func(self, state):
         if state == (0,0):
-            #e = ('o_o', 1)
-            e = (state, 1)
+            e = ('o_o', 1)
+            #e = (state, 1)
             self.reset()
         else:
-            #e = ('-_-', 0)
-            e = (state, 0)
-        return state
+            e = ('-_-', 0)
+            #e = (state, 0)
+        return e
 
 
     
@@ -57,7 +57,7 @@ class GreedyQAgent(grl.foundations.Agent):
     def setup(self):
         self.epsilon = self.kwargs.get('exploration_factor', 0.1)
         self.g = self.kwargs.get('discount_factor', 0.999)
-        self.Q = grl.learning.Storage(dimensions=2, default_values=self.kwargs.get('Q_init', (0,0)), persist=self.kwargs.get('Q_persist', False), compute_statistics=True)
+        self.Q = grl.learning.Storage(dimensions=2, default_values=self.kwargs.get('Q_init', (0,1)), persist=self.kwargs.get('Q_persist', False), compute_statistics=True)
         self.alpha = grl.learning.Storage(dimensions=2, default_values=self.kwargs.get('learning_rate_init', (0.999, 0.999)))
     
     def interact(self, domain):
@@ -79,7 +79,7 @@ class GreedyQAgent(grl.foundations.Agent):
         a = self.am.action
         e = self.hm.mapped_state()
         self.Q[e][a] = self.Q[e][a] + self.alpha[e][a] * (self.rm.r(self.hm.history, a, e_nxt) + self.g * self.Q[e_nxt].max - self.Q[e][a])
-        self.alpha[e][a] = self.alpha[e][a] * 0.99
+        self.alpha[e][a] = self.alpha[e][a] * 0.999
 
 
 ################################################################
@@ -113,7 +113,7 @@ class GreedyQAgent(grl.foundations.Agent):
 
 def phi(h):
     # extract last percept
-    return h[-1][-1]
+    return h[-2][-1]
 
 history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
 domain = BlindMaze(history_mgr)
@@ -126,7 +126,7 @@ a = None
 # can set the initial state (if any) that consequently sets the initial percept.
 agent.interact(domain)
 
-for t in range(50000):
+for t in range(100000):
     history_mgr.extend_history(a, complete=False)
     e = domain.react(a)
     history_mgr.extend_history(e, complete=True)
