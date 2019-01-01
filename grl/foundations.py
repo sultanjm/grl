@@ -3,8 +3,7 @@ import grl
 
 class GRLObject(abc.ABC):
 
-    def __init__(self, history_mgr=None, params=None):
-        self.params = params
+    def __init__(self, history_mgr=None, *args, **kwargs):
         # a derived class must initialize the required managers
         if isinstance(history_mgr, grl.managers.HistoryManager):
             self.hm = history_mgr
@@ -14,6 +13,8 @@ class GRLObject(abc.ABC):
         self.am = grl.managers.ActionManager()
         self.pm = grl.managers.PerceptManager(self.emission_func)
         self.rm = grl.managers.RewardManager(self.reward_func)
+        self.args = args
+        self.kwargs = kwargs
         self.setup()
     
     def stats(self):
@@ -34,7 +35,7 @@ class GRLObject(abc.ABC):
         return s
 
     # default: zero reward function
-    def reward_func(self, s, a, s_nxt=None, e_nxt=None, h=None):
+    def reward_func(self, e, a, s=None, s_nxt=None, h=None):
         return 0
 
 class Domain(GRLObject):
@@ -52,9 +53,11 @@ class Agent(GRLObject):
             raise RuntimeError("No valid domian is provided.")    
         self.am = domain.am # agent knows the available actions in the domain
         self.pm = domain.pm # agent knows the receivable percepts from the domain
-        self.rm = domain.rm # agent knows the true reward function of the domain
-        self.reset()  
+        self.rm = domain.rm # agent knows the true reward function of the domain  
 
     @abc.abstractmethod
     def act(self, percept=None):
         pass 
+    
+    def learn(self, percept=None):
+        pass

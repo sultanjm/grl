@@ -4,11 +4,11 @@ import grl
 
 class HistoryManager:
 
-    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None, history_to_state_map=lambda h: h):
+    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None, state_map=lambda h: h):
         self.MAX_LENGTH = MAX_LENGTH
         self.history = collections.deque(history, MAX_LENGTH)
         self.t = start_timestep + len(history)
-        self.state_map = history_to_state_map
+        self.state_map = state_map
         self.partial_extension = []
     
     def set_history(self, history, start_timestep=0):
@@ -26,15 +26,17 @@ class HistoryManager:
             self.history.append(elem)
             self.t += 1
     
-    def get_mapped_state(self, h=None):
+    def mapped_state(self, h=None):
         if not h:
             h = self.history
         return self.state_map(h)
 
 class PerceptManager:
 
-    def __init__(self, emission_func=lambda s : s):
+    def __init__(self, emission_func=lambda s : s, percepts=None, percept=None):
         self.emission_func = emission_func
+        self.percepts = percepts
+        self.percept = percept
 
     def perception(self, state):
         if not callable(self.emission_func):
@@ -44,9 +46,10 @@ class PerceptManager:
 
 class StateManager:
     
-    def __init__(self, transition_func=lambda s,a: s, start_state=None):
+    def __init__(self, transition_func=lambda s,a: s, start_state=None, states=None):
         self.transition_func = transition_func
         self.state = start_state
+        self.states = states
 
     def simulate(self, action, state=None):
         if not state:
@@ -56,7 +59,8 @@ class StateManager:
         return self.transition_func(state, action)
 
     def transit(self, action):
-        self.state = self.simulate(action)
+        if action:
+            self.state = self.simulate(action)
         return self.state
 
 
@@ -69,8 +73,8 @@ class ActionManager:
 
 class RewardManager:
 
-    def __init__(self, reward_func=lambda s, a, s_nxt, e_nxt, h: 0):
+    def __init__(self, reward_func=lambda e, a, s, s_nxt, h: 0):
         self.reward_func = reward_func
 
-    def r(self, s, a, s_nxt=None, e_nxt=None, h=None):
-        return self.reward_func(s, a, s_nxt, e_nxt, h)
+    def r(self, e, a, s=None, s_nxt=None, h=None):
+        return self.reward_func(e, a, s, s_nxt, h)

@@ -19,24 +19,30 @@ class Storage(collections.MutableMapping):
     # if v > old_max:
     #   old_max = v
 
-    def __init__(self, dims=2, default_val=(0,1), persist=True, default_arg=None, data=None, _root=None):
+    # requires default_arg if argmax or argmin is needed.
+
+    def __init__(self, dims=2, default_values=(0,1), default_args=None, data=None, persist=True, *args, **kwargs):
         self.dimensions = dims
-        self.default_value = default_val
+        self.default_values = default_values
         self.storage = {}
         self.persist = persist
+        self.max = self.default_val()
+        self.min = self.default_val()
 
         # magic: (TODO remove this magic) if a deque is provided then it captures args
         if not isinstance(default_arg, collections.abc.Sequence):
             default_arg = collections.deque(maxlen=10)
         self.default_argument = default_arg
 
-        self.root = _root
+        self.root = kwargs.get('__root', None)
 
         if data:
             self.update(data)
 
-    def __setitem__(self, key, value): 
+    def __setitem__(self, key, value):     
         self.storage[key] = value
+        if self.dims == 1:
+            self.update_statistics(key, value)
         # magic: source of the magic
         if isinstance(self.default_argument, collections.deque):
             self.default_argument.append(key)
@@ -48,7 +54,7 @@ class Storage(collections.MutableMapping):
             if not self.root:
                 self.root = self
             if self.dimensions > 1:
-                v = Storage(dims=self.dimensions - 1, default_val=self.default_value, default_arg=self.default_argument, persist=self.persist, _root=self.root)
+                v = Storage(dims=self.dimensions - 1, default_val=self.default_value, default_arg=self.default_argument, persist=self.persist, __root=self.root)
                 self.storage[key] = v # pretending that the storage is persistent
             else:
                 v = self.default_val()
@@ -78,14 +84,21 @@ class Storage(collections.MutableMapping):
     def __len__(self):
         return len(self.storage)
 
+    def update_statistics(self, key, value):
+        if value > self.max:
+            self.max = value
+            self.argmax = key
+        if value < self.min
+            self.min = value
+            self.argmin = key
+
     def default_val(self):
         return (max(self.default_value) - min(self.default_value)) * np.random.sample() + min(self.default_value)
 
     def default_arg(self):
         if not len(self.default_argument):
             raise RuntimeError("No default argument has been provided or captured yet.")
-        arg = np.random.choice(len(self.default_argument))
-        return self.default_argument[arg]
+        return self.default_argument[np.random.choice(len(self.default_argument))]
 
     def max(self):
         if self.dimensions == 1:
