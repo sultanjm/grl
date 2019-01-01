@@ -4,72 +4,66 @@ import numpy as np
 
 class Storage(collections.MutableMapping):
 
-    # MAX, ARGMAX, MIN, ARGMIN, USER_FUNC (v2)
-    # >>> f[s].argmax()
-    # 'a1'
-    # >>> f[s].min()
-    # 0
-    # >>> f[s].expectation(prob)
-    # 0.5
-    # >>> f[s].user_func()
+    """ 
+    Storage class requires default_arguments if argmax or argmin is needed.
+    
+    dimensions -- storage dimensions (default 2)
+    default_values -- range of initial values as (min, max) (default (0,1))
+    default_arguments -- list of default arguments (default None)
+    persist -- persist the accessed-initialized variable (default True)
+    data -- set any initial data (default None)
 
-    # the user function must have an incremental update structure
-    # e.g. user_func_max(v)
-    # 
-    # if v > old_max:
-    #   old_max = v
+    """
 
-    # requires default_arg if argmax or argmin is needed.
+    def __init__(self, dimensions=2, data=None, *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
 
-    def __init__(self, dims=2, default_values=(0,1), default_args=None, data=None, persist=True, *args, **kwargs):
-        self.dimensions = dims
-        self.default_values = default_values
+        self.dimensions = dimensions
         self.storage = {}
-        self.persist = persist
+        self.persist = self.kwargs.get('persist', True)
+
+        self.default_values = self.kwargs.get('default_values', (0,1))
+        self.default_arguments = self.kwargs.get('default_arguments', None)
+
+        self.compute_statistics = self.kwargs.get('compute_statistics', False)
         self.max = self.default_val()
         self.min = self.default_val()
-
-        # magic: (TODO remove this magic) if a deque is provided then it captures args
-        if not isinstance(default_arg, collections.abc.Sequence):
-            default_arg = collections.deque(maxlen=10)
-        self.default_argument = default_arg
-
-        self.root = kwargs.get('__root', None)
+        self.argmax = self.default_arg()
+        self.argmin = self.default_arg()
 
         if data:
             self.update(data)
 
+        # internal parameters
+        self.__root = self.kwargs.get('__root', None)
+
     def __setitem__(self, key, value):     
         self.storage[key] = value
-        if self.dims == 1:
+        if self.dimensions == 1 and self.compute_statistics:
             self.update_statistics(key, value)
-        # magic: source of the magic
-        if isinstance(self.default_argument, collections.deque):
-            self.default_argument.append(key)
 
     def __getitem__(self, key):
         try:
             return self.storage[key]
         except KeyError:
-            if not self.root:
-                self.root = self
+            if not self.__root:
+                self.__root = self
             if self.dimensions > 1:
-                v = Storage(dims=self.dimensions - 1, default_val=self.default_value, default_arg=self.default_argument, persist=self.persist, __root=self.root)
-                self.storage[key] = v # pretending that the storage is persistent
+                v = Storage(dimensions=self.dimensions - 1, default_values=self.default_values, default_arguments=self.default_arguments, persist=self.persist, compute_statistics=self.compute_statistics, __root=self.__root)
+                # pretending that the storage is persistent
+                self.storage[key] = v 
             else:
                 v = self.default_val()
 
-                # magic: source of the magic
-                if isinstance(self.default_argument, collections.deque):
-                    self.default_argument.append(key)
-
                 if not self.persist:
                     # a non-existent value is accessed in a non-persistent storage
-                    self.root.storage.clear()
+                    self.__root.storage.clear()
                     # check for a memory leak!
-                    del self.root
+                    del self.__root
                 else:
-                    self.storage[key] = v # store the newly generated default value
+                    # store the newly generated default value
+                    self.storage[key] = v
             return v
 
     def __delitem__(self, key):
@@ -84,45 +78,30 @@ class Storage(collections.MutableMapping):
     def __len__(self):
         return len(self.storage)
 
+    def __repr__(self):
+        return dict.__repr__(self.storage)
+
     def update_statistics(self, key, value):
         if value > self.max:
             self.max = value
             self.argmax = key
-        if value < self.min
+
+        # random argmax is 
+
+
+
+        if value < self.min:
             self.min = value
             self.argmin = key
 
     def default_val(self):
-        return (max(self.default_value) - min(self.default_value)) * np.random.sample() + min(self.default_value)
+        return (max(self.default_values) - min(self.default_values)) * np.random.sample() + min(self.default_values)
 
     def default_arg(self):
-        if not len(self.default_argument):
-            raise RuntimeError("No default argument has been provided or captured yet.")
-        return self.default_argument[np.random.choice(len(self.default_argument))]
-
-    def max(self):
-        if self.dimensions == 1:
-            return max(self.values(), default=self.default_val())
-        else:
-            return None
-    
-    def argmax(self):
-        if self.dimensions == 1:
-            return max(self, key=self.get, default=self.default_arg())
-        else:
-            return None
-
-    def min(self):
-        if self.dimensions == 1:
-            return min(self.values(), default=self.default_value())
-        else:
-            return None
-    
-    def argmin(self):
-        if self.dimensions == 1:
-            return min(self, key=self.get, default=self.default_arg())
-        else:
-            return None
+        arg = None
+        if self.default_arguments:
+            arg = self.default_arguments[np.random.choice(len(self.default_arguments))]
+        return arg
 
     def expectation(self, dist=None):
         if self.dimensions == 1:
@@ -135,7 +114,3 @@ class Storage(collections.MutableMapping):
             return sum([dist[key]*self.storage.get(key, self.default_val()) for key in dist.keys()])
         else:
             return None
-
-
-    def __repr__(self):
-        return dict.__repr__(self.storage)
