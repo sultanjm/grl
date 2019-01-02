@@ -115,36 +115,41 @@ def phi(h):
     # extract last percept
     return h[-2][-1]
 
-history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
-domain = BlindMaze(history_mgr)
-#agent = RandomAgent(history_mgr)
-agent = GreedyQAgent(history_mgr, Q_persist=True)
+# history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
+# domain = BlindMaze(history_mgr)
+# #agent = RandomAgent(history_mgr)
+# agent = GreedyQAgent(history_mgr, Q_persist=False)
 
 
-a = None 
-# The iteration starts from the domain, which is more natural. The domain
-# can set the initial state (if any) that consequently sets the initial percept.
-agent.interact(domain)
+# a = None 
+# # The iteration starts from the domain, which is more natural. The domain
+# # can set the initial state (if any) that consequently sets the initial percept.
+# agent.interact(domain)
 
-for t in range(100000):
-    history_mgr.extend_history(a, complete=False)
-    e = domain.react(a)
-    history_mgr.extend_history(e, complete=True)
-    a = agent.act(e)
+# for t in range(100):
+#     history_mgr.extend_history(a, complete=False)
+#     e = domain.react(a)
+#     history_mgr.extend_history(e, complete=True)
+#     a = agent.act(e)
 
-print('Q Function:')
-print(agent.Q)
+# print('Q Function:')
+# print(agent.Q)
 #print('Learning Rates:')
 #print(agent.alpha)
 #print(history_mgr.history)
 
-# a = grl.learning.Storage(dims=3, persist=False)
+a = grl.learning.Storage(dimensions=3, persist=False)
+a[1][2][3]=4 # {1: {2: {3: 4}}}
+a[0][2][3]
+#a[1][2]=4 # {1: {2: 4}}
+
+print(a)
 # print(a[3][1][2] != a[3][1][2])
 # print(a[2][1][1] != a[2][1][1])
 # a[1][3][4] = 1.5
 # print(a[1][3][4] == 1.5)
-# print(a[1][3].max() == 1.5)
-# print(a[1][3].argmax() == 4)
+# print(a[1][3].max == 1.5)
+# print(a[1][3].argmax == 4)
 # print(len(a) == 1)
 
 # b = grl.learning.Storage(persist=True)

@@ -35,7 +35,7 @@ class GRLObject(abc.ABC):
         return s
 
     # default: zero reward function
-    def reward_func(self, e, a, s=None, s_nxt=None, h=None):
+    def reward_func(self, h, a, e_nxt, s=None, s_nxt=None):
         return 0
 
 class Domain(GRLObject):

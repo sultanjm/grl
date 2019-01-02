@@ -73,8 +73,8 @@ class ActionManager:
 
 class RewardManager:
 
-    def __init__(self, reward_func=lambda e, a, s, s_nxt, h: 0):
+    def __init__(self, reward_func=lambda h, a, e_nxt, s, s_nxt: 0):
         self.reward_func = reward_func
 
-    def r(self, e, a, s=None, s_nxt=None, h=None):
-        return self.reward_func(e, a, s, s_nxt, h)
+    def r(self, h, a, e_nxt, s=None, s_nxt=None):
+        return self.reward_func(h, a, e_nxt, s, s_nxt)

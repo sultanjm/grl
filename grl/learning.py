@@ -5,12 +5,12 @@ import numpy as np
 class Storage(collections.MutableMapping):
 
     """ 
-    Storage class requires default_arguments if argmax or argmin is needed.
+    Important! Storage class requires default_arguments if max/min statistics is needed.
     
     dimensions -- storage dimensions (default 2)
     default_values -- range of initial values as (min, max) (default (0,1))
     default_arguments -- list of default arguments (default None)
-    persist -- persist the accessed-initialized variable (default True)
+    persist -- persist the access-initialized variable (default True)
     compute_statistics -- enable statistics computation (default False)
     data -- set any initial data (default None)
 
@@ -19,6 +19,11 @@ class Storage(collections.MutableMapping):
     def __init__(self, dimensions=2, data=None, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
+
+        # internal parameters
+        self.root = self.kwargs.get('root', None)
+        self.parent = self.kwargs.get('parent', None)
+        self.key = self.kwargs.get('key', None)
 
         self.dimensions = dimensions
         self.storage = {}
@@ -37,36 +42,53 @@ class Storage(collections.MutableMapping):
         if data:
             self.update(data)
 
-        # internal parameters
-        self.__root = self.kwargs.get('__root', None)
 
     def __setitem__(self, key, value):     
-        self.storage[key] = value
         if self.dimensions == 1 and self.compute_statistics:
             self.update_statistics(key, value)
+        self.storage[key] = value
 
     def __getitem__(self, key):
         try:
-            return self.storage[key]
+            v = self.storage[key]
+            self.root = None
+            return v
         except KeyError:
-            if not self.__root:
-                self.__root = self
+            # set the root carefully
+
+            # parent 
+            # if has siblings don't do anything
+            # else:
+            # tell parent to kill
+            # p1 p2 p3.a {}
+            # p1 p2 p3.b {v1, v2}
+
+            if not self.root:
+                self.root = self
+
             if self.dimensions > 1:
-                v = Storage(dimensions=self.dimensions - 1, default_values=self.default_values, default_arguments=self.default_arguments, persist=self.persist, compute_statistics=self.compute_statistics, __root=self.__root)
-                # pretending that the storage is persistent
+                v = Storage(dimensions=self.dimensions - 1, 
+                            default_values=self.default_values, 
+                            default_arguments=self.default_arguments, 
+                            persist=self.persist, 
+                            compute_statistics=self.compute_statistics, 
+                            root=self.root,
+                            parent=self,
+                            key=key)
                 self.storage[key] = v 
             else:
                 v = self.default_val()
-
+                self.storage[key] = v
+                
                 if not self.persist:
-                    # a non-existent value is accessed in a non-persistent storage
-                    self.__root.storage.clear()
-                    # check for a memory leak!
-                    del self.__root
-                else:
-                    # store the newly generated default value
-                    self.storage[key] = v
+                    self.purge(key)
             return v
+
+    def purge(self, child_key):
+        if len(self.storage) == 1 and self.parent:
+            self.parent.purge(self.key)
+        else:
+            del self.storage[child_key]
 
     def __delitem__(self, key):
         try:
@@ -83,25 +105,58 @@ class Storage(collections.MutableMapping):
     def __repr__(self):
         return dict.__repr__(self.storage)
 
-    def update_statistics(self, key, value):
-        if self.max == self[self.argmax] and value > self.max: # an existant max value
-            self.argmax, self.max = key, value
+    # the current situation must be realizable
+    # should not have a wrong max/min
+    # problem: we only have set values
+    # might have accessed values too (if persist)
+    # [v1 v2 v3 . . .]
+    # [v1]
+    # case 1:
+    # current value is max
+    # do: set the max
+    # else case 2:
+    # current max is existant and different (invalid maximum)
+    # do: FIND NEW MAX
 
-        if self.min == self[self.argmin] and value < self.min: # an existant min value
+
+
+    # shouldn't make a difference
+
+    def update_statistics(self, key, value):
+        if self.max != self[self.argmax] and self[self.argmax] == self[self.argmax]:
+            # the current maximum is invalid, it has been updated.
+            # do a traditional maximum search
+            # such calls are very rare (check!)
+            items = dict.fromkeys(self.default_arguments, max(self.default_values))
+            items.update(self.storage)
+            self.argmax = max(items, key=items.get)
+            self.max = items[self.argmax]
+            
+        if self.min != self[self.argmin] and self[self.argmin] == self[self.argmin]:
+            # the current minimum is invalid, it has been updated.
+            # do a traditional minimum search
+            # such calls are very rare (check!)
+            items = dict.fromkeys(self.default_arguments, min(self.default_values))
+            items.update(self.storage)
+            self.argmin = min(items, key=items.get)
+            self.min = items[self.argmin]
+
+        if self.max < value:
+            # the current value is the maximum
+            self.argmax, self.max = key, value
+        if self.min > value:
+            # the current value is the minimum
             self.argmin, self.min = key, value
 
     def default_val(self):
         return (max(self.default_values) - min(self.default_values)) * np.random.sample() + min(self.default_values)
 
     def default_arg(self):
-        arg = None
-        if self.default_arguments:
-            arg = self.default_arguments[np.random.choice(len(self.default_arguments))]
-        return arg
+        return None if not self.default_arguments else self.default_arguments[np.random.choice(len(self.default_arguments))]
 
     def expectation(self, dist=None):
         if self.dimensions == 1:
-            if not isinstance(dist, dict) or not np.isclose(sum(dist.values()), 1.0):
+            if not isinstance(dist, dict) or sum(dist.values()) != 1.0:
                 keys = self.storage.keys()
                 if keys:
                     dist = dict.fromkeys(keys, 1/len(keys))
