@@ -30,9 +30,7 @@ class Storage(collections.MutableMapping):
 
         self.default_values = self.kwargs.get('default_values', (0,1))
         self.default_arguments = self.kwargs.get('default_arguments', None)
-
-        self.default_items = dict.fromkeys(self.default_arguments, max(self.default_values))
-
+        
         if data:
             self.update(data)
 
@@ -68,11 +66,11 @@ class Storage(collections.MutableMapping):
     
     def __iter__(self):
         if self.dimensions == 1:
-            self.missing_keys = set(self.default_arguments) - set(self.storage.keys())
+            missing_keys = set(self.default_arguments) - set(self.storage.keys())
             for k,v in self.storage.items():
-                yield (k,v)
-            for k in self.missing_keys:
-                yield (k, self.default_val())
+                yield (v, k)
+            for k in missing_keys:
+                yield (self.default_val(), k)
         else:
             return iter(self.storage)
 

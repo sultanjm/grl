@@ -70,7 +70,7 @@ class GreedyQAgent(grl.foundations.Agent):
         if self.am.action: 
             self.learn(percept)
 
-        a_nxt = [self.Q[percept].argmax, self.am.actions[np.random.choice(len(self.am.actions))]]
+        a_nxt = [max(self.Q[percept])[1], self.am.actions[np.random.choice(len(self.am.actions))]]
 
         self.am.action = a_nxt[np.random.choice(2, p=[1-self.epsilon, self.epsilon])]
         return self.am.action
@@ -78,7 +78,7 @@ class GreedyQAgent(grl.foundations.Agent):
     def learn(self, e_nxt):
         a = self.am.action
         e = self.hm.mapped_state()
-        self.Q[e][a] = self.Q[e][a] + self.alpha[e][a] * (self.rm.r(self.hm.history, a, e_nxt) + self.g * self.Q[e_nxt].max() - self.Q[e][a])
+        self.Q[e][a] = self.Q[e][a] + self.alpha[e][a] * (self.rm.r(self.hm.history, a, e_nxt) + self.g * max(self.Q[e_nxt])[0] - self.Q[e][a])
         self.alpha[e][a] = self.alpha[e][a] * 0.999
 
 
@@ -111,40 +111,43 @@ class GreedyQAgent(grl.foundations.Agent):
 
 ##############################################################
 
-d = grl.learning.Storage(dimensions=1, persist=False, default_arguments=['a', 'b', 'c'])
-d['a'] = 4
-print(min(d, key=lambda x: x[1]))
-for k in d:
-    print(k)
-print(len(d))
-d['b'] = 3
-for k in d:
-    print(k)
+# d = grl.learning.Storage(dimensions=1, persist=False, default_arguments=['a', 'b', 'c'])
+# d['a'] = 4
+# print(max(d)[1])
+# print(min(d)[0])
+
+# for k in d:
+#     print(k)
+# print(len(d))
+# d['b'] = 3
+# for k in d:
+#     print(k)
      
-print(len(d))
-# def phi(h):
-#     # extract last percept
-#     return h[-2][-1]
+# print(len(d))
 
-# history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
-# domain = BlindMaze(history_mgr)
-# #agent = RandomAgent(history_mgr)
-# agent = GreedyQAgent(history_mgr, Q_persist=False)
+def phi(h):
+    # extract last percept
+    return h[-2][-1]
+
+history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
+domain = BlindMaze(history_mgr)
+#agent = RandomAgent(history_mgr)
+agent = GreedyQAgent(history_mgr, Q_persist=False)
 
 
-# a = None 
-# # The iteration starts from the domain, which is more natural. The domain
-# # can set the initial state (if any) that consequently sets the initial percept.
-# agent.interact(domain)
+a = None 
+# The iteration starts from the domain, which is more natural. The domain
+# can set the initial state (if any) that consequently sets the initial percept.
+agent.interact(domain)
 
-# for t in range(100):
-#     history_mgr.extend_history(a, complete=False)
-#     e = domain.react(a)
-#     history_mgr.extend_history(e, complete=True)
-#     a = agent.act(e)
+for t in range(1000):
+    history_mgr.extend_history(a, complete=False)
+    e = domain.react(a)
+    history_mgr.extend_history(e, complete=True)
+    a = agent.act(e)
 
-# print('Q Function:')
-# print(agent.Q)
+print('Q Function:')
+print(agent.Q)
 #print('Learning Rates:')
 #print(agent.alpha)
 #print(history_mgr.history)
