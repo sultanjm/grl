@@ -31,21 +31,14 @@ class Storage(collections.MutableMapping):
         self.default_values = self.kwargs.get('default_values', (0,1))
         self.default_arguments = self.kwargs.get('default_arguments', None)
 
-        self.compute_statistics = self.kwargs.get('compute_statistics', False)
-        if self.compute_statistics:
-            self.max = max(self.default_values)
-            self.min = min(self.default_values)
-            self.argmax = None if not self.default_arguments else self.default_arguments[0]
-            self.argmin = None if not self.default_arguments else self.default_arguments[-1]    
+        self.default_items = dict.fromkeys(self.default_arguments, max(self.default_values))
 
         if data:
             self.update(data)
 
 
     def __setitem__(self, key, value):    
-        self.storage[key] = value 
-        if self.dimensions == 1 and self.compute_statistics:
-            self.update_statistics(key, value)
+        self.storage[key] = value
         
     def __getitem__(self, key):
         try:
@@ -56,7 +49,6 @@ class Storage(collections.MutableMapping):
                             default_values=self.default_values, 
                             default_arguments=self.default_arguments, 
                             persist=self.persist, 
-                            compute_statistics=self.compute_statistics, 
                             parent=self,
                             key=key)
                 self.storage[key] = v 
@@ -66,14 +58,7 @@ class Storage(collections.MutableMapping):
                 # purge the non-existant branch
                 if not self.persist:
                     self.purge(key)
-
-            return v
-
-    def purge(self, child_key):
-        self.storage.pop(child_key, None)
-        if not len(self.storage) and self.parent:
-            self.parent.purge(self.key)
-            
+            return v           
 
     def __delitem__(self, key):
         try:
@@ -82,60 +67,26 @@ class Storage(collections.MutableMapping):
             pass
     
     def __iter__(self):
-        return iter(self.storage)
-    
+        if self.dimensions == 1:
+            self.missing_keys = set(self.default_arguments) - set(self.storage.keys())
+            for k,v in self.storage.items():
+                yield (k,v)
+            for k in self.missing_keys:
+                yield (k, self.default_val())
+        else:
+            return iter(self.storage)
+
     def __len__(self):
         return len(self.storage)
 
     def __repr__(self):
         return dict.__repr__(self.storage)
 
-    # the current situation must be realizable
-    # should not have a wrong max/min
-    # problem: we only have set values
-    # might have accessed values too (if persist)
-    # [v1 v2 v3 . . .]
-    # [v1]
-    # case 1:
-    # current value is max
-    # do: set the max
-    # else case 2:
-    # current max is existant and different (invalid maximum)
-    # do: FIND NEW MAX
-
-    # shouldn't make a difference
-
-    def update_statistics(self, key, value):
-        if self.max != self[self.argmax] and self[self.argmax] == self[self.argmax]:
-            # the current maximum is invalid, it has been updated.
-            # do a traditional maximum search
-            # such calls are very rare (check!) 
-            # WRONG! This call is very frequent.
-            items = dict.fromkeys(self.default_arguments, max(self.default_values))
-            items.update(self)
-            items[key] = value # use the recent value
-            self.argmax = max(items, key=items.get)
-            self.max = items[self.argmax]
-
-             
-        if self.min != self[self.argmin] and self[self.argmin] == self[self.argmin]:
-            # the current minimum is invalid, it has been updated.
-            # do a traditional minimum search
-            # such calls are very rare (check!)
-            # WRONG! This call is very frequent.
-            items = dict.fromkeys(self.default_arguments, min(self.default_values))
-            items.update(self)
-            items[key] = value # use the recent value
-            self.argmin = min(items, key=items.get)
-            self.min = items[self.argmin]
-
-        if self.max < value:
-            # the current value is the maximum
-            self.argmax, self.max = key, value
-        if self.min > value:
-            # the current value is the minimum
-            self.argmin, self.min = key, value
-
+    def purge(self, child_key):
+        self.storage.pop(child_key, None)
+        if not len(self.storage) and self.parent:
+            self.parent.purge(self.key)
+ 
     def default_val(self):
         return (max(self.default_values) - min(self.default_values)) * np.random.sample() + min(self.default_values)
 
