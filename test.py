@@ -111,43 +111,44 @@ class GreedyQAgent(grl.foundations.Agent):
 
 ##############################################################
 
-# d = grl.learning.Storage(dimensions=1, persist=False, default_arguments=['a', 'b', 'c'])
-# d['a'] = 4
-# print(max(d)[1])
-# print(min(d)[0])
+d = grl.learning.Storage(dimensions=1, persist=True, default_arguments=['a', 'b', 'c'])
+d['a'] = 4
+d['c']
+print(max(d)[1])
+print(min(d)[0])
 
-# for k in d:
-#     print(k)
-# print(len(d))
-# d['b'] = 3
-# for k in d:
-#     print(k)
+for k in d:
+    print(k)
+print(len(d))
+d['b'] = 3
+for k in d:
+    print(k)
      
-# print(len(d))
+print(len(d))
 
-def phi(h):
-    # extract last percept
-    return h[-2][-1]
+# def phi(h):
+#     # extract last percept
+#     return h[-2][-1]
 
-history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
-domain = BlindMaze(history_mgr)
-#agent = RandomAgent(history_mgr)
-agent = GreedyQAgent(history_mgr, Q_persist=False)
+# history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
+# domain = BlindMaze(history_mgr)
+# #agent = RandomAgent(history_mgr)
+# agent = GreedyQAgent(history_mgr, Q_persist=False)
 
 
-a = None 
-# The iteration starts from the domain, which is more natural. The domain
-# can set the initial state (if any) that consequently sets the initial percept.
-agent.interact(domain)
+# a = None 
+# # The iteration starts from the domain, which is more natural. The domain
+# # can set the initial state (if any) that consequently sets the initial percept.
+# agent.interact(domain)
 
-for t in range(1000):
-    history_mgr.extend_history(a, complete=False)
-    e = domain.react(a)
-    history_mgr.extend_history(e, complete=True)
-    a = agent.act(e)
+# for t in range(1000):
+#     history_mgr.extend_history(a, complete=False)
+#     e = domain.react(a)
+#     history_mgr.extend_history(e, complete=True)
+#     a = agent.act(e)
 
-print('Q Function:')
-print(agent.Q)
+# print('Q Function:')
+# print(agent.Q)
 #print('Learning Rates:')
 #print(agent.alpha)
 #print(history_mgr.history)

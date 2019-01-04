@@ -11,7 +11,6 @@ class Storage(collections.MutableMapping):
     default_values -- range of initial values as (min, max) (default (0,1))
     default_arguments -- list of default arguments (default None)
     persist -- persist the access-initialized variable (default True)
-    compute_statistics -- enable statistics computation (default False)
     data -- set any initial data (default None)
 
     """
@@ -30,14 +29,17 @@ class Storage(collections.MutableMapping):
 
         self.default_values = self.kwargs.get('default_values', (0,1))
         self.default_arguments = self.kwargs.get('default_arguments', None)
-        
+        self.missing_keys = set(self.default_arguments)
+
         if data:
             self.update(data)
 
 
     def __setitem__(self, key, value):    
         self.storage[key] = value
-        
+        if self.missing_keys: 
+            self.missing_keys.discard(key)
+
     def __getitem__(self, key):
         try:
             return self.storage[key]
@@ -56,6 +58,10 @@ class Storage(collections.MutableMapping):
                 # purge the non-existant branch
                 if not self.persist:
                     self.purge(key)
+                # storage is persistant, hance remove the key
+                elif self.missing_keys:
+                    self.missing_keys.discard(key)
+                    
             return v           
 
     def __delitem__(self, key):
@@ -66,11 +72,10 @@ class Storage(collections.MutableMapping):
     
     def __iter__(self):
         if self.dimensions == 1:
-            missing_keys = set(self.default_arguments) - set(self.storage.keys())
-            for k,v in self.storage.items():
-                yield (v, k)
-            for k in missing_keys:
-                yield (self.default_val(), k)
+            for key, value in self.storage.items():
+                yield (value, key)
+            for key in self.missing_keys:
+                yield (self.default_val(), key)
         else:
             return iter(self.storage)
 
