@@ -21,7 +21,6 @@ class Storage(collections.MutableMapping):
         self.kwargs = kwargs
 
         # internal parameters
-        self.root = self.kwargs.get('root', None)
         self.parent = self.kwargs.get('parent', None)
         self.key = self.kwargs.get('key', None)
 
@@ -43,52 +42,38 @@ class Storage(collections.MutableMapping):
             self.update(data)
 
 
-    def __setitem__(self, key, value):     
+    def __setitem__(self, key, value):    
+        self.storage[key] = value 
         if self.dimensions == 1 and self.compute_statistics:
             self.update_statistics(key, value)
-        self.storage[key] = value
-
+        
     def __getitem__(self, key):
         try:
-            v = self.storage[key]
-            self.root = None
-            return v
+            return self.storage[key]
         except KeyError:
-            # set the root carefully
-
-            # parent 
-            # if has siblings don't do anything
-            # else:
-            # tell parent to kill
-            # p1 p2 p3.a {}
-            # p1 p2 p3.b {v1, v2}
-
-            if not self.root:
-                self.root = self
-
             if self.dimensions > 1:
                 v = Storage(dimensions=self.dimensions - 1, 
                             default_values=self.default_values, 
                             default_arguments=self.default_arguments, 
                             persist=self.persist, 
                             compute_statistics=self.compute_statistics, 
-                            root=self.root,
                             parent=self,
                             key=key)
                 self.storage[key] = v 
             else:
                 v = self.default_val()
                 self.storage[key] = v
-                
+                # purge the non-existant branch
                 if not self.persist:
                     self.purge(key)
+
             return v
 
     def purge(self, child_key):
-        if len(self.storage) == 1 and self.parent:
+        self.storage.pop(child_key, None)
+        if not len(self.storage) and self.parent:
             self.parent.purge(self.key)
-        else:
-            del self.storage[child_key]
+            
 
     def __delitem__(self, key):
         try:
@@ -118,26 +103,29 @@ class Storage(collections.MutableMapping):
     # current max is existant and different (invalid maximum)
     # do: FIND NEW MAX
 
-
-
     # shouldn't make a difference
 
     def update_statistics(self, key, value):
         if self.max != self[self.argmax] and self[self.argmax] == self[self.argmax]:
             # the current maximum is invalid, it has been updated.
             # do a traditional maximum search
-            # such calls are very rare (check!)
+            # such calls are very rare (check!) 
+            # WRONG! This call is very frequent.
             items = dict.fromkeys(self.default_arguments, max(self.default_values))
-            items.update(self.storage)
+            items.update(self)
+            items[key] = value # use the recent value
             self.argmax = max(items, key=items.get)
             self.max = items[self.argmax]
-            
+
+             
         if self.min != self[self.argmin] and self[self.argmin] == self[self.argmin]:
             # the current minimum is invalid, it has been updated.
             # do a traditional minimum search
             # such calls are very rare (check!)
+            # WRONG! This call is very frequent.
             items = dict.fromkeys(self.default_arguments, min(self.default_values))
-            items.update(self.storage)
+            items.update(self)
+            items[key] = value # use the recent value
             self.argmin = min(items, key=items.get)
             self.min = items[self.argmin]
 
