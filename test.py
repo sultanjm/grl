@@ -6,7 +6,7 @@ class BlindMaze(grl.Domain):
     def react(self, action):    
         e = self.pm.perception(self.sm.transit(action))
         return e
-grl.
+        
     def setup(self):
         self.maze_len = self.kwargs.get('maze_len', 4)
         self.sm.states = [(x,y) for x in range(self.maze_len) for y in range(self.maze_len)]
