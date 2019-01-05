@@ -29,12 +29,15 @@ class Storage(collections.MutableMapping):
 
         self.default_values = self.kwargs.get('default_values', (0,1))
         self.default_arguments = self.kwargs.get('default_arguments', None)
-        self.missing_keys = set(self.default_arguments)
+        self.missing_keys = set() if not self.default_arguments else set(self.default_arguments)
 
         if data:
             self.update(data)
 
-
+    def set_default_arguments(self, arguments):
+        self.default_arguments = arguments
+        self.missing_keys = set() if not self.default_arguments else set(self.default_arguments)
+        
     def __setitem__(self, key, value):    
         self.storage[key] = value
         if self.missing_keys: 
@@ -92,9 +95,6 @@ class Storage(collections.MutableMapping):
  
     def default_val(self):
         return (max(self.default_values) - min(self.default_values)) * np.random.sample() + min(self.default_values)
-
-    def default_arg(self):
-        return None if not self.default_arguments else self.default_arguments[np.random.choice(len(self.default_arguments))]
 
     def expectation(self, dist=None):
         if self.dimensions == 1:

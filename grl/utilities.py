@@ -1,5 +1,6 @@
 import numpy as np
 import enum
+import grl
 
 def sample(p_row):
     return np.random.choice(len(p_row), p=p_row)
@@ -16,3 +17,19 @@ def generateRandomProbabilityMatrix(dim1=2, dim2=4, repeat_second_dimension=True
     # WARNING! This code is not robust as, rarely, all the elements in a row can be zero
     T = T / T.sum(axis=-1, keepdims=True)
     return T
+
+def epsilon_sample(vect, argmax=None, epsilon=1.0):
+    p = np.random.random()
+    if p > epsilon:
+        return argmax
+    else:
+        return vect[np.random.choice(len(vect))]   
+
+def optimal_policy(Q):
+    if not isinstance(Q, grl.learning.Storage) or Q.dimensions != 2:
+        raise RuntimeError("No valid Storage object is provided.")
+    policy = {}
+    # need fixing: storage should not be used out side of Storage
+    for state in Q.storage.keys():
+        policy[state] = max(Q[state])[1]
+    return policy 

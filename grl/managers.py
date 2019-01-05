@@ -3,8 +3,7 @@ import numpy as np
 import grl
 
 class HistoryManager:
-
-    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None, state_map=lambda h: h):
+    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None, state_map=lambda a, e, h: None):
         self.MAX_LENGTH = MAX_LENGTH
         self.history = collections.deque(history, MAX_LENGTH)
         self.t = start_timestep + len(history)
@@ -19,20 +18,21 @@ class HistoryManager:
     def extend_history(self, elem, complete=True):
         # the type of elem can be different for each manager
         # in a standard grl framework, it is a tuple of (a,e)
-        self.partial_extension.append(elem)
         if complete:
-            elem = tuple(self.partial_extension)
-            self.partial_extension.clear()
+            if self.partial_extension:
+                elem = tuple(self.partial_extension)
+                self.partial_extension.clear()
             self.history.append(elem)
             self.t += 1
+        else:
+            self.partial_extension.append(elem)
     
-    def mapped_state(self, h=None):
+    def mapped_state(self, a=None, e=None, h=None):
         if not h:
             h = self.history
-        return self.state_map(h)
+        return self.state_map(a, e, h)
 
 class PerceptManager:
-
     def __init__(self, emission_func=lambda s : s, percepts=None, percept=None):
         self.emission_func = emission_func
         self.percepts = percepts
@@ -44,11 +44,11 @@ class PerceptManager:
         return self.emission_func(state)
 
 
-class StateManager:
-    
+class StateManager: 
     def __init__(self, transition_func=lambda s,a: s, start_state=None, states=None):
         self.transition_func = transition_func
         self.state = start_state
+        self.prev_state = None
         self.states = states
 
     def simulate(self, action, state=None):
@@ -60,21 +60,20 @@ class StateManager:
 
     def transit(self, action):
         if action:
+            self.prev_state = self.state
             self.state = self.simulate(action)
         return self.state
 
 
 class ActionManager:
-
     def __init__(self, actions=None, action=None):
         self.actions = actions
         self.action = action
 
 
 class RewardManager:
-
-    def __init__(self, reward_func=lambda h, a, e_nxt, s, s_nxt: 0):
+    def __init__(self, reward_func=lambda a, e, h: 0):
         self.reward_func = reward_func
 
-    def r(self, h, a, e_nxt, s=None, s_nxt=None):
-        return self.reward_func(h, a, e_nxt, s, s_nxt)
+    def r(self, a, e, h):
+        return self.reward_func(a, e, h)

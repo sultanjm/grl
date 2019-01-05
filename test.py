@@ -36,12 +36,39 @@ class BlindMaze(grl.foundations.Domain):
             e = ('-_-', 0)
             #e = (state, 0)
         return e
-
-
     
-    def reward_func(self, h, a, e_nxt, s=None, s_nxt=None):
-        return e_nxt[1]
+    def reward_func(self, a, e, h):
+        return e[1]
 
+    def reset(self):
+        self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
+
+
+class SimpleMDP(grl.foundations.Domain):
+
+    def react(self, action):    
+        e = self.pm.perception(self.sm.transit(action))
+        return e
+
+    def setup(self):
+        self.sm.states = ['s-left', 's-right']
+        self.am.actions = ['left', 'right']
+        self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
+
+    def transition_func(self, state, action):
+        s_nxt = state
+        if state == 's-left' and action == 'left':
+            s_nxt = 's-right'
+        elif state == 's-right' and action == 'right':
+            s_nxt = 's-left'
+        return s_nxt
+    
+    def reward_func(self, a, e, h):
+        s = self.sm.prev_state
+        if (s == 's-left' and a == 'left') or (s == 's-right' and a == 'right'):
+            return 1
+        else:
+            return 0
 
     def reset(self):
         self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
@@ -49,8 +76,7 @@ class BlindMaze(grl.foundations.Domain):
 class RandomAgent(grl.foundations.Agent):
 
     def act(self, percept):
-        a = self.am.actions[np.random.choice(len(self.am.actions))]
-        return a
+        return grl.utilities.epsilon_sample(self.am.actions)
     
 class GreedyQAgent(grl.foundations.Agent):
 
@@ -62,24 +88,27 @@ class GreedyQAgent(grl.foundations.Agent):
     
     def interact(self, domain):
         super().interact(domain)
-        self.Q.default_arguments = self.am.actions
+        self.Q.set_default_arguments(self.am.actions)
 
-    def act(self, percept):
+    def act(self, e):
+
+        a = self.am.action
+
         # This is not the first percept received from the domain.
         # This part looks ugly.
-        if self.am.action: 
-            self.learn(percept)
+        if a:
+            s = self.hm.mapped_state()
+            s_nxt = self.hm.mapped_state(a, e)
+            r_nxt = self.rm.r(a, e, self.hm.history)
 
-        a_nxt = [max(self.Q[percept])[1], self.am.actions[np.random.choice(len(self.am.actions))]]
+            self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (1-self.g) * (r_nxt + self.g * max(self.Q[s_nxt])[0] - self.Q[s][a])
+            self.alpha[s][a] = self.alpha[s][a] * 0.999
+        else:
+            s = e
 
-        self.am.action = a_nxt[np.random.choice(2, p=[1-self.epsilon, self.epsilon])]
+        self.am.action = grl.utilities.epsilon_sample(self.am.actions, max(self.Q[s])[1], 0.1)
+
         return self.am.action
-    
-    def learn(self, e_nxt):
-        a = self.am.action
-        e = self.hm.mapped_state()
-        self.Q[e][a] = self.Q[e][a] + self.alpha[e][a] * (self.rm.r(self.hm.history, a, e_nxt) + self.g * max(self.Q[e_nxt])[0] - self.Q[e][a])
-        self.alpha[e][a] = self.alpha[e][a] * 0.999
 
 
 ################################################################
@@ -111,44 +140,50 @@ class GreedyQAgent(grl.foundations.Agent):
 
 ##############################################################
 
-d = grl.learning.Storage(dimensions=1, persist=True, default_arguments=['a', 'b', 'c'])
-d['a'] = 4
-d['c']
-print(max(d)[1])
-print(min(d)[0])
+# d = grl.learning.Storage(dimensions=1, persist=True, default_arguments=['a', 'b', 'c'])
+# d['a'] = 4
+# d['c']
+# print(max(d)[1])
+# print(min(d)[0])
 
-for k in d:
-    print(k)
-print(len(d))
-d['b'] = 3
-for k in d:
-    print(k)
+# for k in d:
+#     print(k)
+# print(len(d))
+# d['b'] = 3
+# for k in d:
+#     print(k)
      
-print(len(d))
+# print(len(d))
 
-# def phi(h):
-#     # extract last percept
-#     return h[-2][-1]
+def phi_percept(a, e, h):
+    # extract last percept
+    if e:
+        return e
+    else:
+        return h[-1][-1]
 
-# history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi)
-# domain = BlindMaze(history_mgr)
-# #agent = RandomAgent(history_mgr)
-# agent = GreedyQAgent(history_mgr, Q_persist=False)
+history_mgr = grl.managers.HistoryManager(MAX_LENGTH=10, state_map=phi_percept)
+domain = BlindMaze(history_mgr, maze_len=2)
+#domain = SimpleMDP(history_mgr)
+#agent = RandomAgent(history_mgr)
+agent = GreedyQAgent(history_mgr, Q_persist=False)
 
 
-# a = None 
-# # The iteration starts from the domain, which is more natural. The domain
-# # can set the initial state (if any) that consequently sets the initial percept.
-# agent.interact(domain)
+a_nxt = None 
+# The iteration starts from the domain, which is more natural. The domain
+# can set the initial state (if any) that consequently sets the initial percept.
+agent.interact(domain)
 
-# for t in range(1000):
-#     history_mgr.extend_history(a, complete=False)
-#     e = domain.react(a)
-#     history_mgr.extend_history(e, complete=True)
-#     a = agent.act(e)
+for t in range(1000000):
+    a = a_nxt
+    e = domain.react(a)
+    a_nxt = agent.act(e)
+    history_mgr.extend_history((a,e))
 
-# print('Q Function:')
-# print(agent.Q)
+print('Action-value Function:')
+print(agent.Q)
+print('Optimal Policy:')
+print(grl.utilities.optimal_policy(agent.Q))
 #print('Learning Rates:')
 #print(agent.alpha)
 #print(history_mgr.history)
