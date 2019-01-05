@@ -2,6 +2,8 @@ import grl
 import collections
 import numpy as np
 
+__all__ = ['Storage']
+
 class Storage(collections.MutableMapping):
 
     """ 

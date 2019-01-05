@@ -2,12 +2,17 @@ import collections
 import numpy as np
 import grl
 
+__all__ = ['HistoryManager', 'StateManager', 'PerceptManager', 'ActionManager', 'RewardManager']
+
 class HistoryManager:
-    def __init__(self, history=[], start_timestep=0, MAX_LENGTH=None, state_map=lambda a, e, h: None):
-        self.MAX_LENGTH = MAX_LENGTH
-        self.history = collections.deque(history, MAX_LENGTH)
-        self.t = start_timestep + len(history)
+    def __init__(self, state_map=lambda a, e, h: None, history=[], *args, **kwargs):
+        self.args = args
+        self.kwargs = kwargs
+        self.history = collections.deque(history, self.kwargs.get('maxlen', None))
+        self.t = len(history) + self.kwargs.get('start_timestep', 0)
         self.state_map = state_map
+
+        # internal parameters
         self.partial_extension = []
     
     def set_history(self, history, start_timestep=0):

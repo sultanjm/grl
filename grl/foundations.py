@@ -1,20 +1,22 @@
 import abc
 import grl
 
+__all__ = ['GRLObject', 'Domain', 'Agent']
+
 class GRLObject(abc.ABC):
 
     def __init__(self, history_mgr=None, *args, **kwargs):
-        # a derived class must initialize the required managers
-        if isinstance(history_mgr, grl.managers.HistoryManager):
-            self.hm = history_mgr
-        else:
-            self.hm = grl.managers.HistoryManager()
-        self.sm = grl.managers.StateManager(self.transition_func)
-        self.am = grl.managers.ActionManager()
-        self.pm = grl.managers.PerceptManager(self.emission_func)
-        self.rm = grl.managers.RewardManager(self.reward_func)
         self.args = args
         self.kwargs = kwargs
+        # a derived class must initialize the required managers
+        if isinstance(history_mgr, grl.HistoryManager):
+            self.hm = history_mgr
+        else:
+            self.hm = grl.HistoryManager()
+        self.sm = grl.StateManager(self.transition_func)
+        self.am = grl.ActionManager()
+        self.pm = grl.PerceptManager(self.emission_func)
+        self.rm = grl.RewardManager(self.reward_func)
         self.setup()
     
     def stats(self):
@@ -35,7 +37,7 @@ class GRLObject(abc.ABC):
         return s
 
     # default: zero reward function
-    def reward_func(self, h, a, e_nxt, s=None, s_nxt=None):
+    def reward_func(self, a, e, h):
         return 0
 
 class Domain(GRLObject):
