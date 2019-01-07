@@ -1,4 +1,2 @@
-from .BlindMaze import *
-from .SimpleMDP import *
-from .RandomAgent import *
-from .GreedyQAgent import *
+from .agents import *
+from .domains import *

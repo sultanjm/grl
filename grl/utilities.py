@@ -32,6 +32,6 @@ def optimal_policy(Q):
         raise RuntimeError("No valid Storage object is provided.")
     policy = {}
     # needs fixing: storage should not be used out side of Storage
-    for state in Q.storage.keys():
+    for state in Q.keys():
         policy[state] = max(Q[state])[1]
     return policy 

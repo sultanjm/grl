@@ -7,11 +7,11 @@ __all__ = ['Storage']
 class Storage(collections.MutableMapping):
 
     """ 
-    Important! Storage class requires default_arguments if max/min statistics is needed.
+    Important! Storage class requires leaf_keys if max/min statistics is needed.
     
     dimensions -- storage dimensions (default 2)
     default_values -- range of initial values as (min, max) (default (0,1))
-    default_arguments -- list of default arguments (default None)
+    leaf_keys -- list of leaf keys (default None)
     persist -- persist the access-initialized variable (default True)
     data -- set any initial data (default None)
 
@@ -30,16 +30,16 @@ class Storage(collections.MutableMapping):
         self.persist = self.kwargs.get('persist', True)
 
         self.default_values = self.kwargs.get('default_values', (0,1))
-        self.default_arguments = self.kwargs.get('default_arguments', None)
-        self.missing_keys = set() if not self.default_arguments else set(self.default_arguments)
+        self.leaf_keys = self.kwargs.get('leaf_keys', None)
+        self.missing_keys = set() if not self.leaf_keys else set(self.leaf_keys)
 
         if data:
             self.update(data)
 
-    def set_default_arguments(self, arguments):
-        self.default_arguments = arguments
-        self.missing_keys = set() if not self.default_arguments else set(self.default_arguments)
-        
+    def set_leaf_keys(self, keys):
+        self.leaf_keys = keys
+        self.missing_keys = set() if not self.leaf_keys else set(self.leaf_keys)
+    
     def __setitem__(self, key, value):    
         self.storage[key] = value
         if self.missing_keys: 
@@ -52,7 +52,7 @@ class Storage(collections.MutableMapping):
             if self.dimensions > 1:
                 v = Storage(dimensions=self.dimensions - 1, 
                             default_values=self.default_values, 
-                            default_arguments=self.default_arguments, 
+                            leaf_keys=self.leaf_keys, 
                             persist=self.persist, 
                             parent=self,
                             key=key)
@@ -66,7 +66,6 @@ class Storage(collections.MutableMapping):
                 # storage is persistant, hance remove the key
                 elif self.missing_keys:
                     self.missing_keys.discard(key)
-                    
             return v           
 
     def __delitem__(self, key):
@@ -74,21 +73,40 @@ class Storage(collections.MutableMapping):
             del self.storage[key]
         except KeyError:
             pass
-    
+
+    def keys(self):
+        return self.storage.keys()
+
+    def values(self):
+        return self.storage.values()
+
+    def items(self):
+        return self.storage.items()
+
+    # default iterator
     def __iter__(self):
         if self.dimensions == 1:
-            for key, value in self.storage.items():
+            for key, value in self.items():
                 yield (value, key)
             for key in self.missing_keys:
                 yield (self.default_val(), key)
         else:
-            return iter(self.storage)
+            return iter(self.keys())
 
     def __len__(self):
         return len(self.storage)
 
     def __repr__(self):
         return dict.__repr__(self.storage)
+
+    # def keys(self):
+    #     return self.storage.keys()
+
+    # def values(self):
+    #     return self.storage.values()
+
+    # def items(self):
+    #     return self.storage.items()
 
     def purge(self, child_key):
         self.storage.pop(child_key, None)

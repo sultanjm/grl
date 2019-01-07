@@ -16,12 +16,12 @@ domain = SimpleMDP(history_mgr)
 #agent = RandomAgent(history_mgr)
 agent = GreedyQAgent(history_mgr, Q_persist=False)
 
-a_nxt = None 
 # The iteration starts from the domain, which is more natural. The domain
 # can set the initial state (if any) that consequently sets the initial percept.
 agent.interact(domain)
 
-for t in range(100000):
+a_nxt = None 
+for t in range(100):
     a = a_nxt
     e = domain.react(a)
     a_nxt = agent.act(e)
