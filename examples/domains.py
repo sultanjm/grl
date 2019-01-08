@@ -6,6 +6,9 @@ class SimpleMDP(grl.Domain):
         e = self.pm.perception(self.sm.transit(action))
         return e
 
+    def start(self):
+        return self.pm.perception(self.sm.state)
+
     def setup(self):
         self.sm.states = ['s-left', 's-right']
         self.am.actions = ['left', 'right']
@@ -34,6 +37,9 @@ class BlindMaze(grl.Domain):
         e = self.pm.perception(self.sm.transit(action))
         return e
         
+    def start(self):
+        return self.pm.perception(self.sm.state)
+
     def setup(self):
         self.maze_len = self.kwargs.get('maze_len', 4)
         self.sm.states = [(x,y) for x in range(self.maze_len) for y in range(self.maze_len)]
@@ -55,12 +61,12 @@ class BlindMaze(grl.Domain):
     
     def emission_func(self, state):
         if state == (0,0):
-            e = ('o_o', 1)
-            #e = (state, 1)
+            #e = ('o_o', 1)
+            e = (state, 1)
             self.reset()
         else:
-            e = ('-_-', 0)
-            #e = (state, 0)
+            #e = ('-_-', 0)
+            e = (state, 0)
         return e
     
     def reward_func(self, a, e, h):

@@ -74,16 +74,7 @@ class Storage(collections.MutableMapping):
         except KeyError:
             pass
 
-    def keys(self):
-        return self.storage.keys()
-
-    def values(self):
-        return self.storage.values()
-
-    def items(self):
-        return self.storage.items()
-
-    # default iterator
+    # default reverse iterator with the missing key, value pairs.
     def __iter__(self):
         if self.dimensions == 1:
             for key, value in self.items():
@@ -99,14 +90,14 @@ class Storage(collections.MutableMapping):
     def __repr__(self):
         return dict.__repr__(self.storage)
 
-    # def keys(self):
-    #     return self.storage.keys()
+    def keys(self):
+        return self.storage.keys()
 
-    # def values(self):
-    #     return self.storage.values()
+    def values(self):
+        return self.storage.values()
 
-    # def items(self):
-    #     return self.storage.items()
+    def items(self):
+        return self.storage.items()
 
     def purge(self, child_key):
         self.storage.pop(child_key, None)

@@ -57,14 +57,14 @@ class StateManager:
         self.states = states
 
     def simulate(self, action, state=None):
-        if not state:
+        if state is None:
             state = self.state
         if not callable(self.transition_func): 
             raise RuntimeError("No valid transition function is provided.")
         return self.transition_func(state, action)
 
     def transit(self, action):
-        if action:
+        if action is not None:
             self.prev_state = self.state
             self.state = self.simulate(action)
         return self.state
@@ -74,7 +74,6 @@ class ActionManager:
     def __init__(self, actions=None, action=None):
         self.actions = actions
         self.action = action
-
 
 class RewardManager:
     def __init__(self, reward_func=lambda a, e, h: 0):

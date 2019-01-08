@@ -2,7 +2,7 @@ import numpy as np
 import enum
 import grl
 
-__all__ = ['sample', 'random_probability_matrix', 'epsilon_sample', 'optimal_policy']
+__all__ = ['sample', 'random_probability_matrix', 'epsilon_sample', 'optimal_policy', 'bits2int', 'int2bits']
 
 def sample(p_row):
     return np.random.choice(len(p_row), p=p_row)
@@ -31,7 +31,15 @@ def optimal_policy(Q):
     if not isinstance(Q, grl.learning.Storage) or Q.dimensions != 2:
         raise RuntimeError("No valid Storage object is provided.")
     policy = {}
-    # needs fixing: storage should not be used out side of Storage
     for state in Q.keys():
         policy[state] = max(Q[state])[1]
     return policy 
+
+def bits2int(bits):
+    v = 0
+    for b in bits:
+        v = (v << 1) | b
+    return v
+
+def int2bits(n):
+    return [1 if b=='1' else 0 for b in bin(n)[2:]]
