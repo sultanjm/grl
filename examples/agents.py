@@ -14,28 +14,45 @@ class GreedyQAgent(grl.Agent):
         self.epsilon = self.kwargs.get('exploration_factor', 0.1)
         self.g = self.kwargs.get('discount_factor', 0.999)
         self.Q = grl.Storage(dimensions=2, 
-                             default_values=self.kwargs.get('Q_init', (0,1)), 
-                             persist=self.kwargs.get('Q_persist', False))
+                             default_values=self.kwargs.get('value_function_init', (0,1)), 
+                             persist=self.kwargs.get('value_function_persist', False))
         self.alpha = grl.Storage(dimensions=2, 
                                  default_values=self.kwargs.get('learning_rate_init', (0.999, 0.999)))
-    
+
     def interact(self, domain):
         super().interact(domain)
         self.Q.set_leaf_keys(self.am.actions)
 
-    def act(self, e):
+    def start(self, *args, **kwargs):
+        self.am.action = grl.epsilon_sample(self.am.actions)
+        return self.am.action
+        
+
+    # e = e_{t}
+    # h = h_{t-1}
+    # s = s_{t-1}
+    # a = a_{t-1}
+    # hae = h_{t}
+    # s_nxt = s_{t}
+
+    # h (s) --- a --> e (s_nxt)
+
+    def act(self, e_nxt):
         a = self.am.action
         s = self.hm.mapped_state()
-        s_nxt = self.hm.mapped_state(a, e)
-        r_nxt = self.rm.r(a, e, self.hm.history)
+        s_nxt = self.hm.mapped_state(a, e_nxt)
+        r_nxt = self.rm.r(a, e_nxt, self.hm.history)
         
-        if a is not None:
-            self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (1-self.g) * (r_nxt + self.g * max(self.Q[s_nxt])[0] - self.Q[s][a])
-            self.alpha[s][a] = self.alpha[s][a] * 0.999
+        self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (1-self.g) * (r_nxt + self.g * max(self.Q[s_nxt])[0] - self.Q[s][a])
+        self.alpha[s][a] = self.alpha[s][a] * 0.999
 
-        self.am.action = grl.epsilon_sample(self.am.actions, max(self.Q[s])[1], 0.1)
+        a_nxt = grl.epsilon_sample(self.am.actions, max(self.Q[s])[1], 0.1)
 
-        return self.am.action
+        self.am.action = a_nxt
+
+        if self.keep_history: self.hm.history.append(a).append(e_nxt)
+
+        return a_nxt
 
 class StateAgent(grl.Agent):
     pass

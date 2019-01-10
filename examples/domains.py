@@ -2,8 +2,8 @@ import grl
 import numpy as np
 
 class SimpleMDP(grl.Domain):
-    def react(self, action):    
-        e = self.pm.perception(self.sm.transit(action))
+    def react(self, a, h=None):
+        e = self.pm.perception(self.sm.transit(a))
         return e
 
     def start(self):
@@ -33,8 +33,8 @@ class SimpleMDP(grl.Domain):
         self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
 
 class BlindMaze(grl.Domain):
-    def react(self, action):    
-        e = self.pm.perception(self.sm.transit(action))
+    def react(self, a, h=None):    
+        e = self.pm.perception(self.sm.transit(a))
         return e
         
     def start(self):

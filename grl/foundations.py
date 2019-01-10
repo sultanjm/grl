@@ -10,11 +10,13 @@ class GRLObject(abc.ABC):
     def __init__(self, history_mgr=None, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
-        # a derived class must initialize the required managers
+
         if isinstance(history_mgr, grl.HistoryManager):
+            self.keep_history = False
             self.hm = history_mgr
         else:
-            self.hm = grl.HistoryManager()
+            self.keep_history = True
+            self.hm = grl.HistoryManager(maxlen=self.kwargs.get('max_history', None), state_map=self.state_map)
         self.sm = grl.StateManager(self.transition_func)
         self.am = grl.ActionManager()
         self.pm = grl.PerceptManager(self.emission_func)
@@ -31,6 +33,13 @@ class GRLObject(abc.ABC):
     def setup(self): 
         raise NotImplementedError
 
+    @abc.abstractmethod
+    def start(self, *args, **kwargs):
+        raise NotImplementedError
+
+    # default: state map to a '<?>' state
+    def state_map(self, a, e, h): return '<?>'
+
     # default: same state transition loop
     def transition_func(self, s, a): return s
 
@@ -43,11 +52,7 @@ class GRLObject(abc.ABC):
 class Domain(GRLObject):
 
     @abc.abstractmethod
-    def react(self, action): 
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def start(self):
+    def react(self, a, h=None):
         raise NotImplementedError
 
 class Agent(GRLObject):
@@ -61,7 +66,11 @@ class Agent(GRLObject):
         self.rm = domain.rm # agent knows the true reward function of the domain  
 
     @abc.abstractmethod
-    def act(self, percept=None): 
+    def act(self, e):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def learn(self, e):
         raise NotImplementedError
 
 class BinaryMock(Domain):
@@ -71,8 +80,8 @@ class BinaryMock(Domain):
         self.r_dummy = self.kwargs.get('r_dummy', 0)
     
     def start(self):
-        self.last_percept = self.domain.start()
-        return self.last_percept
+        self.prev_e = self.domain.start()
+        return self.prev_e
 
     def hook(self, domain):
         if not isinstance(domain, Domain):
@@ -90,21 +99,21 @@ class BinaryMock(Domain):
         self.sm.state = self.sm.states[0]
         # empty set of binary actions
         self.b = list()
-        self.last_percept = None
+        self.prev_e = None
     
-    def react(self, b):
+    def react(self, b, h=None):
         self.b.append(b)
         self.sm.transit(b)
         if self.sm.state != 0:
             e = self.pm.perception(self.sm.state)
         else:
             e = self.domain.react(self.inv_binary_func(self.b))
-            self.last_percept = e
+            self.prev_e = e
             self.b.clear()
         return e
 
     def emission_func(self, s):
-        return self.last_percept
+        return self.prev_e
 
     def reward_func(self, a, e, h):
         if self.sm.state:

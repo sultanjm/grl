@@ -1,0 +1,32 @@
+- We can start with an empty history for the agent or the domain
+----------------------------------------------------------------
+
+- Option 1: Agent reacts to the empty history
+    - Agent has to either take a random action
+    - Or a fixed behavior based on the internal parameters
+    - Pros: This is how a standard grl framework works
+    - Cons: The implementation becomes very hackish
+    - H = (A x E)*
+    - P(e|ha), A(a|h)
+    - A(a|empty) = A_0(a)
+    - Pr(  a1e2a2e3) = A(a1|empty) P(e2|empty a1) A(a2|a1e2) P(e3|a1e2a2)
+    - Where did e1 go?
+    - Pr(e1a1e2a2e3) = P_0(e1) A(a1|e1) P(e2|e1a1) A(a2|e1a1e2) P(e3|e1a1e2a2)
+    - This is an invalid history
+    - The empty history MUST be mapped to some state
+    
+
+- Option 2: Domain reacts to the empty history
+    - Domain initiate to a random state
+    - Pros: This option is pretty natural
+    - Pros: The agents must observe something to respond
+    - Pros: This is the standard way of dealing finite MDPs
+    - H = E x (A x E)*
+    - P(e|ha), A(a|h)
+    - P(e|empty, empty) = P_0(e)
+    - Pr(e1a1e2a2e3) = P_0(e1) A(a1|e1) P(e2|e1a1) A(a2|e1a1e2) P(e3|e1a1e2a2)
+    - Pr(  a1e2a2e3) = A(a1|empty) P(e2|empty a1) A(a2|a1e2) P(e3|a1e2a2)
+    - This is an invalid history
+    
+
+- Force the users to design GRLObjects capable of handling the empty history.
