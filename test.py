@@ -50,26 +50,32 @@ from examples import *
 # print(history_mgr.history)
 
 
-a = grl.Storage(2, leaf_keys=[1,2,3])
-b = grl.Storage(2)
+a = grl.Storage(2, leaf_keys=[1,2,3], default_values=[-1,1], persist=False)
+b = grl.Storage(2, leaf_keys=[1,2,3,4,5], default_values=0)
 
 a[1][1] = 1
 a[1][2] = 2
-b[2][1] = 1
-b[2][2] = 2
-a[1] = {1: 2, 2: 4, 4: 5} + a[1]
-print(a[1])
-print(a[1].max())
-print(a[1].argmax())
-print(a[1].min())
-print(a[1].argmin())
-print(a[1].sum())
-print(a[1].avg())
-print(a[3].max())
-print(a[3].argmax())
-print(a[3].min())
-print(a[3].argmin())
-print(a[3].sum())
-print(a[3].avg())
+# b[2][1] = 1
+# b[2][2] = 2
+# a[1] = {1: 2, 2: 4, 4: 5} + a[1]
+# print(a[1])
+# print(a[1].max())
+# print(a[1].argmax())
+# print(a[1].min())
+# print(a[1].argmin())
+# print(a[1].sum())
+# print(a[1].avg())
+# print(a[3].max())
+# print(a[3].argmax())
+# print(a[3].min())
+# print(a[3].argmin())
+# print(a[3].sum())
+# print(a[3].avg())
+# print(b[3].argmin())
 
+for k,v in a[1].items():
+    print(k,v)
 
+print(a[1].items())
+print(list(a[1].items()))
+print(len(a[1].items()))

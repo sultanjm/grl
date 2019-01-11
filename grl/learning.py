@@ -9,14 +9,12 @@ __all__ = ['Storage']
 class Storage(collections.MutableMapping):
 
     """ 
-    Important! Storage class requires leaf_keys if max/min statistics is needed.
-    
     dimensions -- storage dimensions (default 2)
     default_values -- range of initial values as (min, max) (default (0,1))
-    leaf_keys -- list of leaf keys (default None)
+    leaf_keys -- list of leaf keys (default ['<?>'])
     persist -- persist the access-initialized variable (default True)
     data -- set any initial data (default None)
-
+    
     """
 
     def __init__(self, dimensions=2, data=None, *args, **kwargs):
@@ -30,8 +28,10 @@ class Storage(collections.MutableMapping):
         self.dimensions = dimensions
         self.storage = {}
         self.persist = self.kwargs.get('persist', True)
-
+        
         self.default_values = self.kwargs.get('default_values', (0,1))
+        if not isinstance(self.default_values, collections.Sequence):
+            self.default_values = [self.default_values]
         self.leaf_keys = self.kwargs.get('leaf_keys', None)
         self.missing_keys = set() if not self.leaf_keys else set(self.leaf_keys)
 
@@ -78,23 +78,13 @@ class Storage(collections.MutableMapping):
 
     def __iter__(self):
         if self.dimensions == 1:
-            for key in self.keys():
+            for key in self.storage.keys():
                 yield key
             missing = copy.deepcopy(self.missing_keys)
             for key in missing:
                 yield key
         else:
-            return iter(self.keys())
-
-    # default reverse iterator with the missing key, value pairs.
-    # def __iter__(self):
-    #     if self.dimensions == 1:
-    #         for key, value in self.items():
-    #             yield (value, key)
-    #         for key in self.missing_keys:
-    #             yield (self.default_val(), key)
-    #     else:
-    #         return iter(self.keys())
+            return iter(self.storage.keys())
 
     def __len__(self):
         return len(self.storage)
@@ -163,7 +153,10 @@ class Storage(collections.MutableMapping):
     
     def argmax(self):
         if self.dimensions == 1:
-            max_key = max(self, key=self.get)
+            try: 
+                max_key = max(self, key=self.get)
+            except ValueError: 
+                return None
             if len(self.missing_keys):
                 if self.storage[max_key] < max(self.default_values):
                     max_key = random.sample(self.missing_keys, 1)[0]
@@ -179,26 +172,18 @@ class Storage(collections.MutableMapping):
     
     def argmin(self):
         if self.dimensions == 1:
-            min_key = max(self.storage, key=self.storage.get)
+            try: 
+                min_key = max(self, key=self.get)
+            except ValueError: 
+                return None
             if len(self.missing_keys):
                 if self.storage[min_key] > min(self.default_values):
                     min_key = random.sample(self.missing_keys, 1)[0]
             return min_key
-
     
     def avg(self):
         if self.dimensions == 1:
             return self.sum() / (len(self.storage) + len(self.missing_keys))
-
-
-    def keys(self):
-        return self.storage.keys()
-
-    def values(self):
-        return self.storage.values()
-
-    def items(self):
-        return self.storage.items()
 
     def purge(self, child_key):
         self.storage.pop(child_key, None)
