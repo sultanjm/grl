@@ -1,6 +1,8 @@
 import grl
 import collections
 import numpy as np
+import random
+import copy
 
 __all__ = ['Storage']
 
@@ -74,21 +76,120 @@ class Storage(collections.MutableMapping):
         except KeyError:
             pass
 
-    # default reverse iterator with the missing key, value pairs.
     def __iter__(self):
         if self.dimensions == 1:
-            for key, value in self.items():
-                yield (value, key)
-            for key in self.missing_keys:
-                yield (self.default_val(), key)
+            for key in self.keys():
+                yield key
+            missing = copy.deepcopy(self.missing_keys)
+            for key in missing:
+                yield key
         else:
             return iter(self.keys())
+
+    # default reverse iterator with the missing key, value pairs.
+    # def __iter__(self):
+    #     if self.dimensions == 1:
+    #         for key, value in self.items():
+    #             yield (value, key)
+    #         for key in self.missing_keys:
+    #             yield (self.default_val(), key)
+    #     else:
+    #         return iter(self.keys())
 
     def __len__(self):
         return len(self.storage)
 
     def __repr__(self):
         return dict.__repr__(self.storage)
+
+    def operate(self, other, operation):
+        if self.dimensions != 1:
+            raise RuntimeError("TODO: This operation is not supported at {}-dimensional storage yet!".format(self.dimensions))
+        # TODO: find a way to get rid of these for-loops.
+        if not isinstance(other, collections.Mapping):
+            for k in self.storage:
+                self.storage[k] = operation(self.storage[k], other)
+        else:
+            for k in self.storage:
+                try:
+                    self.storage[k] = operation(self.storage[k], other[k])
+                except KeyError:
+                    pass
+        return self
+
+    def __add__(self, other):
+        return self.operate(other, lambda x, y: x + y)
+    __radd__ = __add__
+
+    def __sub__(self, other):
+        return self.operate(other, lambda x, y: x - y)
+    __rsub__ = __sub__
+
+    def __mul__(self, other):
+        return self.operate(other, lambda x, y: x * y)
+    __rmul__ = __mul__
+    
+    def __matmul__(self, other):
+        return self.operate(other, lambda x, y: x @ y)
+    __rmatmul__ = __matmul__
+    
+    def __mod__(self, other):
+        return self.operate(other, lambda x, y: x % y)
+    __rmod__ = __mod__
+
+    def __truediv__(self, other):
+        return self.operate(other, lambda x, y: x / y)
+    __rtruediv__ = __truediv__
+
+    def __floordiv__(self, other):
+        return self.operate(other, lambda x, y: x // y)
+    __rfloordiv__ = __floordiv__
+
+    def __pow__(self, other):
+        return self.operate(other, lambda x, y: x ** y)
+    __rpow__ = __pow__
+
+    def sum(self):
+        if self.dimensions == 1:
+            return sum(self.storage.values()) +  sum([self.default_val() for _ in range(len(self.missing_keys))])
+
+    def max(self):
+        if self.dimensions == 1:
+            max_v = max(self.storage.values(), default=max(self.default_values))
+            if len(self.missing_keys):
+                if max_v < max(self.default_values):
+                    max_v = max(self.default_values)
+            return max_v
+    
+    def argmax(self):
+        if self.dimensions == 1:
+            max_key = max(self, key=self.get)
+            if len(self.missing_keys):
+                if self.storage[max_key] < max(self.default_values):
+                    max_key = random.sample(self.missing_keys, 1)[0]
+            return max_key
+
+    def min(self):
+        if self.dimensions == 1:
+            min_v = min(self.storage.values(), default=min(self.default_values))
+            if len(self.missing_keys):
+                if min_v > min(self.default_values):
+                    min_v = min(self.default_values)
+            return min_v
+    
+    def argmin(self):
+        if self.dimensions == 1:
+            min_key = max(self.storage, key=self.storage.get)
+            if len(self.missing_keys):
+                if self.storage[min_key] > min(self.default_values):
+                    min_key = random.sample(self.missing_keys, 1)[0]
+            return min_key
+
+    
+    def avg(self):
+        if self.dimensions == 1:
+            return self.sum() / (len(self.storage) + len(self.missing_keys))
+
 
     def keys(self):
         return self.storage.keys()
@@ -105,7 +206,7 @@ class Storage(collections.MutableMapping):
             self.parent.purge(self.key)
  
     def default_val(self):
-        return (max(self.default_values) - min(self.default_values)) * np.random.sample() + min(self.default_values)
+        return random.uniform(min(self.default_values), max(self.default_values))
 
     def expectation(self, dist=None):
         if self.dimensions == 1:

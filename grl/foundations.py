@@ -29,13 +29,8 @@ class GRLObject(abc.ABC):
     def reset(self):
         pass
 
-    @abc.abstractmethod
     def setup(self): 
-        raise NotImplementedError
-
-    @abc.abstractmethod
-    def start(self, *args, **kwargs):
-        raise NotImplementedError
+        pass
 
     # default: state map to a '<?>' state
     def state_map(self, a, e, h): return '<?>'
@@ -52,7 +47,11 @@ class GRLObject(abc.ABC):
 class Domain(GRLObject):
 
     @abc.abstractmethod
-    def react(self, a, h=None):
+    def react(self, a, h):
+        raise NotImplementedError
+
+    @abc.abstractmethod
+    def start(self, a=None):
         raise NotImplementedError
 
 class Agent(GRLObject):
@@ -66,11 +65,15 @@ class Agent(GRLObject):
         self.rm = domain.rm # agent knows the true reward function of the domain  
 
     @abc.abstractmethod
-    def act(self, e):
+    def act(self, h):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def learn(self, e):
+    def learn(self, a, e, h):
+        raise NotImplementedError
+    
+    @abc.abstractmethod
+    def start(self, e=None):
         raise NotImplementedError
 
 class BinaryMock(Domain):
@@ -79,8 +82,8 @@ class BinaryMock(Domain):
         self.am.actions = [0, 1]
         self.r_dummy = self.kwargs.get('r_dummy', 0)
     
-    def start(self):
-        self.prev_e = self.domain.start()
+    def start(self, a=None):
+        self.prev_e = self.domain.start(a)
         return self.prev_e
 
     def hook(self, domain):

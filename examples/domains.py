@@ -2,11 +2,11 @@ import grl
 import numpy as np
 
 class SimpleMDP(grl.Domain):
-    def react(self, a, h=None):
+    def react(self, a, h = None):
         e = self.pm.perception(self.sm.transit(a))
         return e
 
-    def start(self):
+    def start(self, a = None):
         return self.pm.perception(self.sm.state)
 
     def setup(self):
