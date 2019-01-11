@@ -96,16 +96,24 @@ class Storage(collections.MutableMapping):
         if self.dimensions != 1:
             raise RuntimeError("TODO: This operation is not supported at {}-dimensional storage yet!".format(self.dimensions))
         # TODO: find a way to get rid of these for-loops.
+        mock = copy.deepcopy(self.storage)
         if not isinstance(other, collections.Mapping):
             for k in self.storage:
-                self.storage[k] = operation(self.storage[k], other)
+                mock[k] = operation(self[k], other)
+            for k in self.missing_keys:
+                mock[k] = operation(self[k], other)
         else:
             for k in self.storage:
                 try:
-                    self.storage[k] = operation(self.storage[k], other[k])
+                    mock[k] = operation(self[k], other[k])
                 except KeyError:
                     pass
-        return self
+            for k in self.missing_keys:
+                try:
+                    mock[k] = operation(self[k], other[k])
+                except KeyError:
+                    pass
+        return Storage(self.dimensions, mock, *self.args, **self.kwargs)
 
     def __add__(self, other):
         return self.operate(other, lambda x, y: x + y)
@@ -180,10 +188,6 @@ class Storage(collections.MutableMapping):
                 if self.storage[min_key] > min(self.default_values):
                     min_key = random.sample(self.missing_keys, 1)[0]
             return min_key
-    
-    def avg(self):
-        if self.dimensions == 1:
-            return self.sum() / (len(self.storage) + len(self.missing_keys))
 
     def purge(self, child_key):
         self.storage.pop(child_key, None)
@@ -193,14 +197,13 @@ class Storage(collections.MutableMapping):
     def default_val(self):
         return random.uniform(min(self.default_values), max(self.default_values))
 
-    def expectation(self, dist=None):
+    def avg(self, p=None):
         if self.dimensions == 1:
-            if not isinstance(dist, dict) or sum(dist.values()) != 1.0:
-                keys = self.storage.keys()
-                if keys:
-                    dist = dict.fromkeys(keys, 1/len(keys))
-                else:
-                    return self.default_val()
-            return sum([dist[key]*self.storage.get(key, self.default_val()) for key in dist.keys()])
-        else:
-            return None
+            if isinstance(p, collections.Mapping):
+                if self.leaf_keys:
+                    q = dict.fromkeys(self.leaf_keys, 0)
+                    q.update(p)
+                    p = q
+                return (self * p).sum()
+            else:
+                return self.sum() / (len(self) + len(self.missing_keys))

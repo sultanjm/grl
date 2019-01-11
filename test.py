@@ -50,7 +50,7 @@ from examples import *
 # print(history_mgr.history)
 
 
-a = grl.Storage(2, leaf_keys=[1,2,3], default_values=[-1,1], persist=False)
+a = grl.Storage(2, leaf_keys=[1,2,3,4], default_values=0.5, persist=False)
 b = grl.Storage(2, leaf_keys=[1,2,3,4,5], default_values=0)
 
 a[1][1] = 1
@@ -73,9 +73,6 @@ a[1][2] = 2
 # print(a[3].avg())
 # print(b[3].argmin())
 
-for k,v in a[1].items():
-    print(k,v)
-
-print(a[1].items())
-print(list(a[1].items()))
-print(len(a[1].items()))
+print(a[1].avg())
+print(a[1].avg({1:0, 2:0, 3:5.0}))
+print(a[1].sum())
