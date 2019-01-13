@@ -38,7 +38,7 @@ class GreedyQAgent(grl.Agent):
         s_nxt = self.hm.mapped_state(a, e)
         r_nxt = self.rm.r(a, e, self.hm.history)
         
-        self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (1-self.g) * (r_nxt + self.g * max(self.Q[s_nxt])[0] - self.Q[s][a])
+        self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (r_nxt + self.g * max(self.Q[s_nxt])[0] - self.Q[s][a])
         self.alpha[s][a] = self.alpha[s][a] * 0.999
 
         if self.keep_history: self.hm.history.append(a).append(e)
@@ -63,8 +63,7 @@ class FrequencyAgent(grl.Agent):
         self.pi.set_default(1/len(self.am.actions))
 
     def act(self, h):
-        self.v = ValueIteration(self.p, self.r, self.g, self.eps, self.v, 100)
-        self.pi = PolicyImprovement(self.p, self.r, self.v, self.pi, self.g, 10)
+        self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=10, vi_steps=100)
         s = self.hm.state_map(None, None, h)
         return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 1.0)
 
@@ -96,40 +95,3 @@ def phi_ExtremeQ(a, e, h):
     q = optimal_action_value_of_the_domain(a, e, h)
     s = np.floor(q/eps).astype('int')
     return s
-
-def ValueIteration(p, r, g=0.999, eps=1e-6, v=None, steps=math.inf):
-    if not isinstance(v, grl.Storage):
-        v = grl.Storage(1, default=0, leaf_keys=p.keys())
-    done = False
-    while steps and not done:
-        delta = 0
-        for s in p:
-            v_old = v[s]
-            v[s] = (1 - g) * max([(r[s][a] + g * v).avg(p[s][a]) for a in p[s]])
-            delta = max(delta, abs(v_old - v[s]))
-        if delta < eps:
-            done = True
-        steps -= 1
-    return v    
-
-def PolicyIteration(p, r, g=0.999, eps=1e-6, v=None, pi=None, steps=math.inf):
-    if not isinstance(pi, grl.Storage):
-        pi = grl.Storage(2, default=1)
-    v = ValueIteration(p, r, g, eps, v, steps)
-    pi = PolicyImprovement(p, r, v, pi, steps)
-    return pi
-
-def PolicyImprovement(p, r, v, pi, g=0.999, steps=math.inf):
-    stable = False
-    while steps and not stable:
-        stable = True
-        for s in p:
-            p_old = pi[s]
-            v_s = {a:(r[s][a] + g * v).avg(p[s][a]) for a in p[s]}
-            a_max = max(v_s, key=v_s.get)
-            pi[s].clear()
-            pi[s][a_max] = 1
-            if pi[s] != p_old:
-                stable = False
-        steps -= 1
-    return pi

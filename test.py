@@ -90,10 +90,11 @@ print(agent.pi)
 # p[2]['b'][2] = 1
 
 # r[1]['a'][1] = 1
-# v = ValueIteration(p, r)
-# print(v)
+
+
 # pi[1]['a'] = 0.3
 # pi[1]['b'] = 0.7
 # pi[2]['a'] = 0.5
 # pi[2]['b'] = 0.5
-# print(PolicyImprovement(p, r, v, pi))
+# print(grl.VITabular(p, r))
+# print(grl.PITabular(p, r))

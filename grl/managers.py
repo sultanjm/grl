@@ -13,7 +13,7 @@ class HistoryManager:
         self.state_map = state_map
 
         # internal parameters
-        self.partial_extension = []
+        self.partial_extension = list()
     
     def set_history(self, history, start_timestep=0):
         self.history.clear()

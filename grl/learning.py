@@ -28,7 +28,7 @@ class Storage(collections.MutableMapping):
         self.default_range = False
 
         self.dimensions = dimensions
-        self.storage = {}
+        self.storage = dict()
         self.persist = self.kwargs.get('persist', True)
         
         self.set_default(self.kwargs.get('default', [None]))

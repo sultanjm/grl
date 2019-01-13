@@ -135,5 +135,3 @@ class BinaryMock(Domain):
 
     def inv_binary_func(self, b):
         return self.ext_actions[grl.bits2int(b)]
-
-    
