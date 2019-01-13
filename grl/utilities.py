@@ -1,6 +1,7 @@
 import numpy as np
 import enum
 import grl
+import random
 
 __all__ = ['sample', 'random_probability_matrix', 'epsilon_sample', 'optimal_policy', 'bits2int', 'int2bits']
 
@@ -21,11 +22,11 @@ def random_probability_matrix(dim1=2, dim2=4, repeat_second_dimension=True):
     return T
 
 def epsilon_sample(vect, argmax=None, epsilon=1.0):
-    p = np.random.random()
+    p = random.uniform(0,1)
     if p > epsilon:
         return argmax
     else:
-        return vect[np.random.choice(len(vect))]   
+        return random.sample(vect, 1)[0]  
 
 def optimal_policy(Q):
     if not isinstance(Q, grl.learning.Storage) or Q.dimensions != 2:

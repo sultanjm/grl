@@ -27,10 +27,10 @@ class GRLObject(abc.ABC):
         raise NotImplementedError
 
     def reset(self):
-        pass
+        return
 
     def setup(self): 
-        pass
+        return
 
     # default: state map to a '<?>' state
     def state_map(self, a, e, h): return '<?>'

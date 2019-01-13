@@ -9,22 +9,24 @@ class StorageTestCase(unittest.TestCase):
         self.assertEqual(a[1][2][3], 4)
     
     def test_non_persist_access(self):
-        a = grl.Storage(dimensions=2, persist=False)
+        a = grl.Storage(dimensions=2, persist=False, default=(0,1))
         self.assertNotEqual(a[1][2], a[1][2])
 
     def test_non_persist_max(self):
-        a = grl.Storage(dimensions=3, persist=False, default_arguments=range(4))
+        a = grl.Storage(dimensions=3, persist=False, leaf_keys=range(4), default=(0,1))
         a[1][2][3]
         a[1][2][1] = 5
         a[1][2][2]
-        self.assertEqual(max(a[1][2]), (5, 1))
+        self.assertEqual(a[1][2].max(), 5)
+        self.assertEqual(a[1][2].argmax(), 1)
 
     def test_non_persist_min(self):
-        a = grl.Storage(dimensions=3, persist=False, default_arguments=range(4))
+        a = grl.Storage(dimensions=3, persist=False, leaf_keys=range(4), default=(0,1))
         a[1][2][3]
         a[1][2][1] = 0
         a[1][2][2]
-        self.assertEqual(min(a[1][2]), (0, 1))
+        self.assertEqual(a[1][2].min(), 0)
+        self.assertEqual(a[1][2].argmin(), 1)
 
     def test_non_persist_len(self):
         a = grl.Storage(dimensions=3, persist=False)
@@ -39,25 +41,27 @@ class StorageTestCase(unittest.TestCase):
         self.assertEqual(a[1][2][3], 4)
     
     def test_persist_access(self):
-        a = grl.Storage(dimensions=2, persist=True)
+        a = grl.Storage(dimensions=2, persist=True, default=(0,1))
         self.assertEqual(a[1][2], a[1][2])
 
-    def test_non_persist_max(self):
-        a = grl.Storage(dimensions=3, persist=True, default_arguments=range(4))
+    def test_persist_max(self):
+        a = grl.Storage(dimensions=3, persist=True, leaf_keys=range(4), default=(0,1))
         a[1][2][3]
         a[1][2][1] = 5
         a[1][2][2]
-        self.assertEqual(max(a[1][2]), (5, 1))
+        self.assertEqual(a[1][2].max(), 5)
+        self.assertEqual(a[1][2].argmax(), 1)
 
     def test_persist_min(self):
-        a = grl.Storage(dimensions=3, persist=True, default_arguments=range(4))
+        a = grl.Storage(dimensions=3, persist=True, leaf_keys=range(4), default=(0,1))
         a[1][2][3]
-        a[1][2][1] = 0
+        a[1][2][1] = -1
         a[1][2][2]
-        self.assertEqual(min(a[1][2]), (0, 1))
+        self.assertEqual(a[1][2].min(), -1)
+        self.assertEqual(a[1][2].argmin(), 1)
 
     def test_persist_len(self):
-        a = grl.Storage(dimensions=3, persist=True)
+        a = grl.Storage(dimensions=3, persist=True, default=(0,1))
         a[1][2][3]
         a[1][2][1] = 5
         a[1][2][2]

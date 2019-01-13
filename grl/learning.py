@@ -10,8 +10,9 @@ class Storage(collections.MutableMapping):
 
     """ 
     dimensions -- storage dimensions (default 2)
-    default_values -- range of initial values as (min, max) (default (0,1))
-    leaf_keys -- list of leaf keys (default ['<?>'])
+    default -- list of initial values (default [None])
+    Note: a tuple of length at least 2 will be considered as a range
+    leaf_keys -- list of leaf keys (default None)
     persist -- persist the access-initialized variable (default True)
     data -- set any initial data (default None)
     
@@ -24,16 +25,14 @@ class Storage(collections.MutableMapping):
         # internal parameters
         self.parent = self.kwargs.get('parent', None)
         self.key = self.kwargs.get('key', None)
+        self.default_range = False
 
         self.dimensions = dimensions
         self.storage = {}
         self.persist = self.kwargs.get('persist', True)
         
-        self.default_values = self.kwargs.get('default_values', (0,1))
-        if not isinstance(self.default_values, collections.Sequence):
-            self.default_values = [self.default_values]
-        self.leaf_keys = self.kwargs.get('leaf_keys', None)
-        self.missing_keys = set() if not self.leaf_keys else set(self.leaf_keys)
+        self.set_default(self.kwargs.get('default', [None]))
+        self.set_leaf_keys(self.kwargs.get('leaf_keys', None))
 
         if data:
             self.update(data)
@@ -41,6 +40,13 @@ class Storage(collections.MutableMapping):
     def set_leaf_keys(self, keys):
         self.leaf_keys = keys
         self.missing_keys = set() if not self.leaf_keys else set(self.leaf_keys)
+
+    def set_default(self, default):
+        self.default = default
+        if not isinstance(self.default, collections.Sequence):
+            self.default = [self.default]
+        if isinstance(self.default, tuple) and len(self.default) > 1:
+            self.default_range = True
     
     def __setitem__(self, key, value):    
         self.storage[key] = value
@@ -53,14 +59,14 @@ class Storage(collections.MutableMapping):
         except KeyError:
             if self.dimensions > 1:
                 v = Storage(dimensions=self.dimensions - 1, 
-                            default_values=self.default_values, 
+                            default=self.default, 
                             leaf_keys=self.leaf_keys, 
                             persist=self.persist, 
                             parent=self,
                             key=key)
                 self.storage[key] = v 
             else:
-                v = self.default_val()
+                v = self.default_value()
                 self.storage[key] = v
                 # purge the non-existant branch
                 if not self.persist:
@@ -77,14 +83,12 @@ class Storage(collections.MutableMapping):
             pass
 
     def __iter__(self):
+        for key in self.storage.keys():
+            yield key
         if self.dimensions == 1:
-            for key in self.storage.keys():
-                yield key
             missing = copy.deepcopy(self.missing_keys)
             for key in missing:
                 yield key
-        else:
-            return iter(self.storage.keys())
 
     def __len__(self):
         return len(self.storage)
@@ -96,24 +100,26 @@ class Storage(collections.MutableMapping):
         if self.dimensions != 1:
             raise RuntimeError("TODO: This operation is not supported at {}-dimensional storage yet!".format(self.dimensions))
         # TODO: find a way to get rid of these for-loops.
-        mock = copy.deepcopy(self.storage)
+        data = copy.deepcopy(self.storage)
         if not isinstance(other, collections.Mapping):
             for k in self.storage:
-                mock[k] = operation(self[k], other)
-            for k in self.missing_keys:
-                mock[k] = operation(self[k], other)
+                data[k] = operation(self[k], other)
+                missing = copy.deepcopy(self.missing_keys)
+            for k in missing:
+                data[k] = operation(self[k], other)
         else:
             for k in self.storage:
                 try:
-                    mock[k] = operation(self[k], other[k])
+                    data[k] = operation(self[k], other[k])
                 except KeyError:
                     pass
-            for k in self.missing_keys:
+            missing = copy.deepcopy(self.missing_keys)
+            for k in missing:
                 try:
-                    mock[k] = operation(self[k], other[k])
+                    data[k] = operation(self[k], other[k])
                 except KeyError:
                     pass
-        return Storage(self.dimensions, mock, *self.args, **self.kwargs)
+        return Storage(self.dimensions, data, *self.args, **self.kwargs)
 
     def __add__(self, other):
         return self.operate(other, lambda x, y: x + y)
@@ -149,14 +155,13 @@ class Storage(collections.MutableMapping):
 
     def sum(self):
         if self.dimensions == 1:
-            return sum(self.storage.values()) +  sum([self.default_val() for _ in range(len(self.missing_keys))])
+            return sum(self.storage.values()) +  sum([self.default_value() for _ in range(len(self.missing_keys))])
 
     def max(self):
         if self.dimensions == 1:
-            max_v = max(self.storage.values(), default=max(self.default_values))
-            if len(self.missing_keys):
-                if max_v < max(self.default_values):
-                    max_v = max(self.default_values)
+            max_v = max(self.storage.values(), default=max(self.default))
+            if len(self.missing_keys) and max_v < max(self.default):
+                max_v = max(self.default)
             return max_v
     
     def argmax(self):
@@ -165,27 +170,24 @@ class Storage(collections.MutableMapping):
                 max_key = max(self, key=self.get)
             except ValueError: 
                 return None
-            if len(self.missing_keys):
-                if self.storage[max_key] < max(self.default_values):
-                    max_key = random.sample(self.missing_keys, 1)[0]
+            if len(self.missing_keys) and self.storage[max_key] < max(self.default):
+                max_key = random.sample(self.missing_keys, 1)[0]
             return max_key
 
     def min(self):
         if self.dimensions == 1:
-            min_v = min(self.storage.values(), default=min(self.default_values))
-            if len(self.missing_keys):
-                if min_v > min(self.default_values):
-                    min_v = min(self.default_values)
+            min_v = min(self.storage.values(), default=min(self.default))
+            if len(self.missing_keys) and min_v > min(self.default):
+                min_v = min(self.default)
             return min_v
     
     def argmin(self):
         if self.dimensions == 1:
             try: 
-                min_key = max(self, key=self.get)
+                min_key = min(self, key=self.get)
             except ValueError: 
                 return None
-            if len(self.missing_keys):
-                if self.storage[min_key] > min(self.default_values):
+            if len(self.missing_keys) and self.storage[min_key] > min(self.default):
                     min_key = random.sample(self.missing_keys, 1)[0]
             return min_key
 
@@ -194,8 +196,11 @@ class Storage(collections.MutableMapping):
         if not len(self.storage) and self.parent:
             self.parent.purge(self.key)
  
-    def default_val(self):
-        return random.uniform(min(self.default_values), max(self.default_values))
+    def default_value(self):
+        if self.default_range:
+            return random.uniform(min(self.default), max(self.default))
+        else:
+            return random.sample(self.default, 1)[0]
 
     def avg(self, p=None):
         if self.dimensions == 1:
