@@ -2,6 +2,7 @@ import abc
 import grl
 import numpy as np
 import copy
+import math
 
 __all__ = ['GRLObject', 'Domain', 'Agent', 'BinaryMock']
 
@@ -33,7 +34,7 @@ class GRLObject(abc.ABC):
         return
 
     # default: state map to a '<?>' state
-    def state_map(self, a, e, h): return '<?>'
+    def state_map(self, a, e, h, *args, **kwargs): return '<?>'
 
     # default: same state transition loop
     def transition_func(self, s, a): return s
@@ -54,15 +55,22 @@ class Domain(GRLObject):
     def start(self, a=None):
         raise NotImplementedError
 
+    def oracle(self, a, e, h, g, *args, **kwargs):
+        raise NotImplementedError
+
 class Agent(GRLObject):
    
     # default: interacting with only one domain
     def interact(self, domain):
         if not isinstance(domain, Domain):
-            raise RuntimeError("No valid domian is provided.")    
+            raise RuntimeError("No valid domian is provided.")
         self.am = domain.am # agent knows the available actions in the domain
         self.pm = domain.pm # agent knows the receivable percepts from the domain
         self.rm = domain.rm # agent knows the true reward function of the domain  
+
+        # WARNING! Be mindful when using oracles. They are super powerful!
+        self.oracle = domain.oracle # agent has access to the oracle of the domain
+        
 
     @abc.abstractmethod
     def act(self, h):
@@ -80,10 +88,15 @@ class BinaryMock(Domain):
 
     def setup(self):
         self.am.actions = [0, 1]
-        self.r_dummy = self.kwargs.get('r_dummy', 0)
-    
+        self.r_dummy = self.kwargs.get('r_dummy', 0.0)
+        self.hm_ae = grl.HistoryManager(self.hm.history.maxlen)
+        self.domain = None
+        self.restrict_A_cache = dict()
+
     def start(self, a=None):
         self.prev_e = self.domain.start(a)
+        if a is not None: self.hm_ae.history.append(a)
+        self.hm_ae.history.append(self.prev_e)
         return self.prev_e
 
     def hook(self, domain):
@@ -103,17 +116,47 @@ class BinaryMock(Domain):
         # empty set of binary actions
         self.b = list()
         self.prev_e = None
-    
+        self.restrict_A_cache.clear()
+
     def react(self, b, h=None):
         self.b.append(b)
         self.sm.transit(b)
         if self.sm.state != 0:
             e = self.pm.perception(self.sm.state)
         else:
-            e = self.domain.react(self.inv_binary_func(self.b))
+            a = self.inv_binary_func(self.b)
+            e = self.domain.react(a)
+            self.hm_ae.history.append(a)
+            self.hm_ae.history.append(e)
             self.prev_e = e
             self.b.clear()
         return e
+
+    def oracle(self, b, e, h, g, *args, **kwargs):
+        g_org = g**self.d
+        q = self.domain.oracle(None, None, self.hm_ae.history, g_org, *args, **kwargs)
+        q_bin = grl.Storage(1, default=0, leaf_keys=[0,1])
+        # "wierd" masking of the unavailable actions
+        # moves the action-values of the unavailable actions to -inf
+        q_bin[0] = (q + self.restricted_action_space(self.b, 0)).max()
+        q_bin[1] = (q + self.restricted_action_space(self.b, 1)).max()
+        q_bin = g ** (self.d - self.sm.state + 1) * q_bin
+        return q_bin
+
+    def restricted_action_space(self, b_vector, b):
+        b_key = ''.join(str(x) for x in b_vector) + str(b)
+        if self.restrict_A_cache.get(b_key, None):
+            return self.restrict_A_cache[b_key]
+        # expensive computation!
+        A = grl.Storage(1, default= -math.inf, leaf_keys=self.domain.am.actions)
+        for a in self.ext_actions:
+            bit_list = self.binary_func(a)
+            for bits in bit_list:
+                a_str = ''.join(str(x) for x in bits)
+                if a_str.startswith(b_key): A[a] = 0.0
+        # cache the computation
+        self.restrict_A_cache[b_key] = A
+        return A
 
     def emission_func(self, s):
         return self.prev_e
@@ -127,11 +170,16 @@ class BinaryMock(Domain):
     def transition_func(self, s, b):
         return (s + 1) % self.d
 
+    # this is not exactly a function (returns a list of bits)
     def binary_func(self, a):
-        b = grl.int2bits(a)
-        while len(b) < self.d: 
-            b.append(0)
-        return b
+        indices = [i for i, x in enumerate(self.ext_actions) if x == a]
+        b_list = list()
+        for i in indices:
+            b = grl.int2bits(i)
+            while len(b) < self.d: 
+                b.append(0)
+            b_list.append(b)
+        return b_list
 
     def inv_binary_func(self, b):
         return self.ext_actions[grl.bits2int(b)]

@@ -1,5 +1,6 @@
 import grl
 import numpy as np
+import random
 
 class SimpleMDP(grl.Domain):
     def react(self, a, h = None):
@@ -30,14 +31,28 @@ class SimpleMDP(grl.Domain):
             return 0
 
     def reset(self):
-        self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
+        self.sm.state = random.sample(self.sm.states,1)[0]
+    
+    def oracle(self, a, e, h, g, *args, **kwargs):
+        Q = grl.Storage(1, default=0, leaf_keys=self.am.actions)
+        if e is not None:
+            s = e
+        else:
+            s = h[-1]
+        
+        if s == 's-left':
+            Q['left'] = 1/(1-g)
+        elif s == 's-right':
+            Q['right'] = 1/(1-g)
+    
+        return Q
 
 class BlindMaze(grl.Domain):
-    def react(self, a, h=None):    
+    def react(self, a, h=None):
         e = self.pm.perception(self.sm.transit(a))
         return e
         
-    def start(self):
+    def start(self, a):
         return self.pm.perception(self.sm.state)
 
     def setup(self):

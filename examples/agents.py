@@ -52,8 +52,8 @@ class FrequencyAgent(grl.Agent):
         self.r = grl.Storage(3, default=0)
         self.p = grl.Storage(3, default=0)
         self.g = self.kwargs.get('discount_factor', 0.999)
-        self.eps = self.kwargs.get('value_iteration_tolerance', 1e-6)
-        self.steps = self.kwargs.get('value_iteration_max_steps', math.inf)
+        self.eps = self.kwargs.get('tolerance', 1e-6)
+        self.steps = self.kwargs.get('steps', math.inf)
         self.v = grl.Storage(1, default=0)
         self.pi = grl.Storage(2, default=1)
 
@@ -63,13 +63,16 @@ class FrequencyAgent(grl.Agent):
         self.pi.set_default(1/len(self.am.actions))
 
     def act(self, h):
-        self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=10, vi_steps=100)
-        s = self.hm.state_map(None, None, h)
-        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 1.0)
+        self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=1, vi_steps=1)
+        # Oracle Alert!
+        s = self.hm.state_map(None, None, h, self.g, q_func=self.oracle)
+        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 0.1)
 
     def learn(self, a, e, h):
-        s = self.hm.state_map(None, None, h)
-        s_nxt = self.hm.state_map(a, e, h)
+        # Oracle Alert!
+        s = self.hm.state_map(None, None, h, g=self.g, q_func=self.oracle)
+        s_nxt = self.hm.state_map(a, e, h, g=self.g, q_func=self.oracle)
+
         # update the reward matrix
         self.r[s][a][s_nxt] = (self.n[s][a][s_nxt]*self.r[s][a][s_nxt] + self.rm.r(a, e, h))/(self.n[s][a][s_nxt]+1)
         # update the transition matrix
@@ -82,16 +85,3 @@ class FrequencyAgent(grl.Agent):
     def start(self, e = None):
         self.am.action = grl.epsilon_sample(self.am.actions)
         return self.am.action
-
-def phi_ExtremeVA(a, e, h):
-    eps = 0.01
-    v = optimal_value_of_the_domain(a, e, h)
-    a_opt = optimal_action_of_the_domain(a, e, h)
-    s = [np.floor(v/eps).astype('int'), a_opt]
-    return s
-
-def phi_ExtremeQ(a, e, h):
-    eps = 0.01
-    q = optimal_action_value_of_the_domain(a, e, h)
-    s = np.floor(q/eps).astype('int')
-    return s

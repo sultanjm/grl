@@ -32,10 +32,10 @@ class HistoryManager:
         else:
             self.partial_extension.append(elem)
     
-    def mapped_state(self, a=None, e=None, h=None):
+    def mapped_state(self, a=None, e=None, h=None, *args, **kwargs):
         if not h:
             h = self.history
-        return self.state_map(a, e, h)
+        return self.state_map(a, e, h, *args, **kwargs)
 
 class PerceptManager:
     def __init__(self, emission_func=lambda s : s, percepts=None, percept=None):

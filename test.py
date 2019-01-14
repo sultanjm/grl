@@ -4,24 +4,43 @@ import collections
 from examples import *
 
 
-def phi_percept(a, e, h):
+def phi_percept(a, e, h, *args, **kwargs):
     # extract last percept
     if e is not None:
         return e
     else:
         return h[-1]
 
-history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_percept)
+def phi_extreme_va(a, e, h, *args, **kwargs):
+    eps = kwargs.get('eps', 0.01)
+    q_func = kwargs.get('q_func', lambda x: x)
+    g = kwargs.get('g', 0.999)
+    q = q_func(a, e, h, g)
+    s = (q.max() // eps, q.argmax())
+    return s
+
+def phi_extreme_q(a, e, h, *args, **kwargs):
+    eps = kwargs.get('eps', 0.01)
+    q_func = kwargs.get('q_func', lambda x: x)
+    g = kwargs.get('g', 0.999)
+    q = q_func(a, e, h, g)
+    q = q // eps
+    keys = sorted(q)
+    s = tuple(q[k] for k in keys)
+    return s
+
+history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_va)
 #domain = BlindMaze(history_mgr, maze_len=2)
 domain = SimpleMDP(history_mgr)
 #agent = RandomAgent(history_mgr)
 agent = FrequencyAgent(history_mgr)
 #agent = GreedyQAgent(history_mgr, value_function_persist=False, exploration_factor=0.3)
-#bin_domain = grl.BinaryMock(history_mgr)
 
-#bin_domain.hook(domain)
+o_domain = domain
+domain = grl.BinaryMock(history_mgr)
+domain.hook(o_domain)
+
 agent.interact(domain)
-
 h = history_mgr.history
 
 # A Domain-Initiated Framework
