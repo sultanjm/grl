@@ -3,6 +3,7 @@ import grl
 import numpy as np
 import copy
 import math
+import random 
 
 __all__ = ['GRLObject', 'Domain', 'Agent', 'BinaryMock']
 
@@ -89,13 +90,16 @@ class BinaryMock(Domain):
     def setup(self):
         self.am.actions = [0, 1]
         self.r_dummy = self.kwargs.get('r_dummy', 0.0)
-        self.hm_ae = grl.HistoryManager(self.hm.history.maxlen)
+        self.hm_ae = grl.HistoryManager(maxlen=self.hm.history.maxlen)
         self.domain = None
         self.restrict_A_cache = dict()
 
     def start(self, a=None):
-        self.prev_e = self.domain.start(a)
-        if a is not None: self.hm_ae.history.append(a)
+        # Design Choice: Ignore the starting binary input and 
+        # take a random action on the hooked domain
+        a_org = None if a == None else random.sample(self.ext_actions, 1)[0]
+        self.prev_e = self.domain.start(a_org)
+        if a_org != None: self.hm_ae.history.append(a_org)
         self.hm_ae.history.append(self.prev_e)
         return self.prev_e
 
@@ -133,14 +137,33 @@ class BinaryMock(Domain):
         return e
 
     def oracle(self, b, e, h, g, *args, **kwargs):
+        # TODO: the following logic can be optimized (cache the previous oracle calls)
+
+        # temporarily pop the last ae-pair
+        if len(self.hm_ae.history) > 2: # TODO: This is a hack!
+            e_org = self.hm_ae.history.pop()
+            a_org = self.hm_ae.history.pop()
+        else:
+            e_org, a_org = None, None
+
         g_org = g**self.d
-        q = self.domain.oracle(None, None, self.hm_ae.history, g_org, *args, **kwargs)
+ 
+        if e == None:
+            q = self.domain.oracle(None, None, self.hm_ae.history, g_org, *args, **kwargs)
+        else:
+            q = self.domain.oracle(a_org, e_org, self.hm_ae.history, g_org, *args, **kwargs)
+
+        # push back the temporarily popped ae-pair
+        if a_org and e_org:
+            self.hm_ae.history.append(a_org)
+            self.hm_ae.history.append(e_org)
+
         q_bin = grl.Storage(1, default=0, leaf_keys=[0,1])
         # "wierd" masking of the unavailable actions
         # moves the action-values of the unavailable actions to -inf
         q_bin[0] = (q + self.restricted_action_space(self.b, 0)).max()
         q_bin[1] = (q + self.restricted_action_space(self.b, 1)).max()
-        q_bin = g ** (self.d - self.sm.state + 1) * q_bin
+        q_bin = g ** (self.d - self.sm.state - 1) * q_bin
         return q_bin
 
     def restricted_action_space(self, b_vector, b):
@@ -165,7 +188,21 @@ class BinaryMock(Domain):
         if self.sm.state:
             return self.r_dummy
         else:
-            return self.domain.rm.r(a, e, self.domain.hm.history)
+            # temporarily pop the last ae-pair
+            if len(self.hm_ae.history) > 2: # TODO: This is a hack!
+                e_org = self.hm_ae.history.pop()
+                a_org = self.hm_ae.history.pop()
+            else:
+                e_org, a_org = None, None
+            if e == None:
+                r = self.domain.rm.r(None, None, self.hm_ae.history)
+            else:
+                r = self.domain.rm.r(a_org, e_org, self.hm_ae.history)
+            # push back the temporarily popped ae-pair
+            if a_org and e_org:
+                self.hm_ae.history.append(a_org)
+                self.hm_ae.history.append(e_org)
+            return r
 
     def transition_func(self, s, b):
         return (s + 1) % self.d

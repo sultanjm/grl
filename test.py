@@ -25,8 +25,7 @@ def phi_extreme_q(a, e, h, *args, **kwargs):
     g = kwargs.get('g', 0.999)
     q = q_func(a, e, h, g)
     q = q // eps
-    keys = sorted(q)
-    s = tuple(q[k] for k in keys)
+    s = tuple(q[k] for k in sorted(q))
     return s
 
 history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_va)

@@ -66,7 +66,7 @@ class FrequencyAgent(grl.Agent):
         self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=1, vi_steps=1)
         # Oracle Alert!
         s = self.hm.state_map(None, None, h, self.g, q_func=self.oracle)
-        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 0.1)
+        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 1.0)
 
     def learn(self, a, e, h):
         # Oracle Alert!
