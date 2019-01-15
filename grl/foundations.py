@@ -33,6 +33,9 @@ class GRLObject(abc.ABC):
 
     def setup(self): 
         return
+    
+    def on(self, event):
+        return
 
     # default: state map to a '<?>' state
     def state_map(self, a, e, h, *args, **kwargs): return '<?>'

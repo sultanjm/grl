@@ -73,6 +73,10 @@ class FrequencyAgent(grl.Agent):
         s = self.hm.state_map(None, None, h, g=self.g, q_func=self.oracle)
         s_nxt = self.hm.state_map(a, e, h, g=self.g, q_func=self.oracle)
 
+        # curr_s = self.hm.state(history=h, extension=[a,e], level='current', *args)
+        # next_s = self.hm.state(history=h, extension=[a,e], level='next', *args)
+        # prev_s = self.hm.state(history=h, extension=[a,e], level='previous', *args)
+
         # update the reward matrix
         self.r[s][a][s_nxt] = (self.n[s][a][s_nxt]*self.r[s][a][s_nxt] + self.rm.r(a, e, h))/(self.n[s][a][s_nxt]+1)
         # update the transition matrix

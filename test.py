@@ -3,6 +3,24 @@ import numpy as np
 import collections
 from examples import *
 
+h = grl.History(maxlen=4)
+h.append(0)
+h.append(1)
+h.extend(['a','b'])
+for v in h:
+    print(v)
+print(h[0])
+print(h[1])
+print(h[2])
+print(h[3])
+print(h)
+print(h[-1])
+print(h[-2])
+print(h[-3])
+print(h[-4])
+
+
+
 
 def phi_percept(a, e, h, *args, **kwargs):
     # extract last percept
@@ -11,11 +29,16 @@ def phi_percept(a, e, h, *args, **kwargs):
     else:
         return h[-1]
 
-def phi_extreme_va(a, e, h, *args, **kwargs):
+def phi_extreme_va(history, extension, level, *args, **kwargs):
     eps = kwargs.get('eps', 0.01)
     q_func = kwargs.get('q_func', lambda x: x)
     g = kwargs.get('g', 0.999)
-    q = q_func(a, e, h, g)
+
+    # if level == 'current':
+    # elif level == 'next':
+    # elif level == 'previous':
+
+    q = q_func(history, g, *args, **kwargs)
     s = (q.max() // eps, q.argmax())
     return s
 
