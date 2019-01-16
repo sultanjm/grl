@@ -9,22 +9,18 @@ __all__ = ['History', 'HistoryManager', 'StateManager', 'PerceptManager', 'Actio
 class History(collections.MutableSequence):
 
     def __init__(self, *args, **kwargs):
-        self.history = collections.deque(*args, **kwargs)
+        self.history = collections.deque(kwargs.get('history', list()), kwargs.get('maxlen', None))
         self.extension = list()
-        self.time = 0
-        self.xtime = 0
+        self.steps = 0.0
+        self.xsteps = 0.0
+        self.steplen = kwargs.get('steplen', 1)
+        self.stats = kwargs.get('stats', dict())
 
     @property
     def t(self):
-        return self.time + self.xtime
+        return self.steps + self.xsteps
 
-    @t.setter
-    def t(self, time):
-        if not isinstance(time, collections.Sequence):
-            time = [time, self.xtime]
-        self.time, self.xtime = time
-
-    # TODO: support slicing
+    # TODO: no slicing at the moment
     def __getitem__(self, index):
         storage, index = self.__adjust_index__(index)
         return storage[index]
@@ -51,7 +47,7 @@ class History(collections.MutableSequence):
         return len(self.history) + len(self.extension)
 
     def __repr__(self):
-        return repr(self.history) + ' || ' + repr(self.extension)
+        return repr(self.history) + ' || ' + repr(self.extension) + ' <steps={},xsteps={},steplen={}>'.format(self.steps, self.xsteps, self.steplen)
 
     def __adjust_index__(self, index):
         if index < 0:
@@ -67,18 +63,56 @@ class History(collections.MutableSequence):
 
 
 class HistoryManager:
+
     def __init__(self, state_map=lambda hm, *x, **y: '<?>', history=[], *args, **kwargs):
-        self.maxlen = kwargs.get('maxlen', None)
-        self.history = History(history, maxlen=self.maxlen)
-        self.history.t = kwargs.get('timestep', 0)
+        self.steplen = kwargs.get('steplen', 2)
+        self.maxlen = None if not kwargs.get('maxlen', None) else self.steplen * kwargs.get('maxlen', None)
+        self.history = History(history=history, maxlen=self.maxlen, steplen=self.steplen)
+        self.history.steps = kwargs.get('steps', 0.0)
         self.state_map = state_map
         self.listeners = collections.defaultdict(set)
 
-    def extend(self, *args):
-        for arg in args:
-            self.history.extend(arg)
-        if args: self.history.t += 1
+    def record(self, items):
+        steps = len(items) / self.steplen
+        for item in items:
+            self.history.append(item)
+        self.history.steps += steps
         return self
+
+    def extension(self, items):
+        steps = len(items) / self.steplen
+        for item in items:
+            self.history.extension.append(item)
+        self.history.xsteps += steps
+        return self
+
+    def drop(self, steps=1.0):
+        if not (float(steps) * self.steplen).is_integer():
+            raise RuntimeError("unable to drop {} elements.".format(steps * self.steplen))
+        dropped = list()
+        for _ in range(int(steps*self.steplen)):
+            dropped.append(self.history.pop())
+        self.history.steps -= steps
+        return dropped[::-1]
+
+    def xdrop(self, steps=None):
+        if steps is None: steps = self.history.xsteps
+        dropped = list()
+        if not (float(steps) * self.steplen).is_integer():
+            raise RuntimeError("unable to drop {} elements.".format(steps * self.steplen))
+        for _ in range(int(steps*self.steplen)):
+            dropped.append(self.history.extension.pop())
+        self.history.xsteps -= steps
+        return dropped[::-1]
+
+    def xmerge(self):
+        if self.history.extension:
+            for arg in self.history.extension:
+                self.history.append(arg)
+            self.history.steps += self.history.xsteps
+            self.xdrop(self.history.xsteps)
+        else:
+            raise ValueError("The extension is empty.")
 
     @property
     def h(self):
@@ -87,42 +121,36 @@ class HistoryManager:
     @h.setter
     def h(self, history):
         if not isinstance(history, History):
-            self.history = History(history, maxlen=self.maxlen)
-        else:
-            self.history = history
+            raise RuntimeError("No valid History object is provided.")
+        self.history = history
 
-    # def extend_history(self, elem, complete=True):
-    #     # the type of elem can be different for each manager
-    #     # in a standard grl framework, it is a tuple of (a,e)
-    #     if complete:
-    #         if self.partial_extension:
-    #             elem = tuple(self.partial_extension)
-    #             self.partial_extension.clear()
-    #         self.history.append(elem)
-    #         self.t += 1
-    #     else:
-    #         self.partial_extension.append(elem)
-    
-    def state(self, history, extension, level, *args, **kwargs):
-        hm = self.assert_manager(history)
-        hm.request.clear()
-        hm.request['level'] = level
-        hm.request['extension'] = extension
-        hm.request['args'] = args
-        hm.request['kwargs'] = kwargs
-        s = self.state_map(hm, *args, **kwargs)
-        hm.request.clear()
+    def state(self, history, *args, **kwargs):
+        hm = self.assert_hm(history)
+        extension = kwargs.get('extension', list())
+        level = kwargs.get('level', 'current')
+        dropped_h = list()
+        dropped_xtn = list()
+
+        if level == 'next':
+            dropped_xtn = hm.xdrop()
+            hm.extension(dropped_xtn).extension(extension)
+        elif level == 'previous':
+            dropped_xtn = hm.xdrop(1.0)
+            if not dropped_xtn:
+                dropped_h = hm.drop(1.0)
+
+        s = self.state_map(history, *args, **kwargs)
+
+        hm.xdrop()
+        hm.record(dropped_h).extension(dropped_xtn)
+
         return s
 
-
-    def previous_state(self, h=None, *args, **kwargs):
-        pass
-
-    def assert_manager(self, history):
+    def assert_hm(self, history):
         hm = self
         if history is not self.history:
             hm = copy.deepcopy(self)
-            hm.set_history(history)
+            hm.history = history
         return hm
 
     def register(self, obj, event_name='update'):
@@ -136,6 +164,7 @@ class HistoryManager:
             obj.on(event)
    
 class PerceptManager:
+
     def __init__(self, emission_func=lambda s : s, percepts=None, percept=None):
         self.emission_func = emission_func
         self.percepts = percepts
@@ -148,6 +177,7 @@ class PerceptManager:
 
 
 class StateManager: 
+
     def __init__(self, transition_func=lambda s,a: s, start_state=None, states=None):
         self.transition_func = transition_func
         self.state = start_state
@@ -169,11 +199,13 @@ class StateManager:
 
 
 class ActionManager:
+
     def __init__(self, actions=None, action=None):
         self.actions = actions
         self.action = action
 
 class RewardManager:
+
     def __init__(self, reward_func=lambda a, e, h: 0):
         self.reward_func = reward_func
 

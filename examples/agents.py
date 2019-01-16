@@ -65,26 +65,22 @@ class FrequencyAgent(grl.Agent):
     def act(self, h):
         self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=1, vi_steps=1)
         # Oracle Alert!
-        s = self.hm.state_map(None, None, h, self.g, q_func=self.oracle)
-        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 1.0)
+        s = self.hm.state(h, g=self.g, q_func=self.oracle)
+        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 0.1)
 
     def learn(self, a, e, h):
         # Oracle Alert!
-        s = self.hm.state_map(None, None, h, g=self.g, q_func=self.oracle)
-        s_nxt = self.hm.state_map(a, e, h, g=self.g, q_func=self.oracle)
-
-        # curr_s = self.hm.state(history=h, extension=[a,e], level='current', *args)
-        # next_s = self.hm.state(history=h, extension=[a,e], level='next', *args)
-        # prev_s = self.hm.state(history=h, extension=[a,e], level='previous', *args)
+        s = self.hm.state(h, g=self.g, q_func=self.oracle)
+        s_next = self.hm.state(h, extension=[a,e], level='next', g=self.g, q_func=self.oracle)
 
         # update the reward matrix
-        self.r[s][a][s_nxt] = (self.n[s][a][s_nxt]*self.r[s][a][s_nxt] + self.rm.r(a, e, h))/(self.n[s][a][s_nxt]+1)
+        self.r[s][a][s_next] = (self.n[s][a][s_next]*self.r[s][a][s_next] + self.rm.r(a, e, h))/(self.n[s][a][s_next]+1)
         # update the transition matrix
         n_sum = self.n[s][a].sum()
         if n_sum: self.p[s][a] *= n_sum/(n_sum+1)
-        self.p[s][a][s_nxt] += 1/(n_sum+1)
+        self.p[s][a][s_next] += 1/(n_sum+1)
         # register the new input
-        self.n[s][a][s_nxt] += 1
+        self.n[s][a][s_next] += 1
 
     def start(self, e = None):
         self.am.action = grl.epsilon_sample(self.am.actions)

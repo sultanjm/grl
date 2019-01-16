@@ -59,7 +59,7 @@ class Domain(GRLObject):
     def start(self, a=None):
         raise NotImplementedError
 
-    def oracle(self, a, e, h, g, *args, **kwargs):
+    def oracle(self, h, *args, **kwargs):
         raise NotImplementedError
 
 class Agent(GRLObject):
@@ -93,7 +93,7 @@ class BinaryMock(Domain):
     def setup(self):
         self.am.actions = [0, 1]
         self.r_dummy = self.kwargs.get('r_dummy', 0.0)
-        self.hm_ae = grl.HistoryManager(maxlen=self.hm.history.maxlen)
+        self.hm_ae = grl.HistoryManager(maxlen=self.hm.maxlen)
         self.domain = None
         self.restrict_A_cache = dict()
 
@@ -102,8 +102,10 @@ class BinaryMock(Domain):
         # take a random action on the hooked domain
         a_org = None if a == None else random.sample(self.ext_actions, 1)[0]
         self.prev_e = self.domain.start(a_org)
-        if a_org != None: self.hm_ae.history.append(a_org)
-        self.hm_ae.history.append(self.prev_e)
+        if a_org == None:
+            self.hm_ae.record([self.prev_e])
+        else:
+            self.hm_ae.record([a_org, self.prev_e])
         return self.prev_e
 
     def hook(self, domain):
@@ -133,33 +135,22 @@ class BinaryMock(Domain):
         else:
             a = self.inv_binary_func(self.b)
             e = self.domain.react(a)
-            self.hm_ae.history.append(a)
-            self.hm_ae.history.append(e)
+            self.hm_ae.record([a,e])
             self.prev_e = e
             self.b.clear()
         return e
 
-    def oracle(self, b, e, h, g, *args, **kwargs):
-        # TODO: the following logic can be optimized (cache the previous oracle calls)
-
-        # temporarily pop the last ae-pair
-        if len(self.hm_ae.history) > 2: # TODO: This is a hack!
-            e_org = self.hm_ae.history.pop()
-            a_org = self.hm_ae.history.pop()
-        else:
-            e_org, a_org = None, None
-
+    def oracle(self, h, *args, **kwargs):
+        # TODO: assert the binary history h is the transformation of h_ae
+        diff = self.d*self.hm_ae.h.t - h.t 
+        assert(diff >= 0.0)
+        g = kwargs.get('g', 0.999)
         g_org = g**self.d
- 
-        if e == None:
-            q = self.domain.oracle(None, None, self.hm_ae.history, g_org, *args, **kwargs)
-        else:
-            q = self.domain.oracle(a_org, e_org, self.hm_ae.history, g_org, *args, **kwargs)
+        kwargs['g'] = g_org
 
-        # push back the temporarily popped ae-pair
-        if a_org and e_org:
-            self.hm_ae.history.append(a_org)
-            self.hm_ae.history.append(e_org)
+        dropped_h = self.hm_ae.drop(diff)
+        q = self.domain.oracle(self.hm_ae.h, *args, **kwargs)
+        self.hm_ae.record(dropped_h)
 
         q_bin = grl.Storage(1, default=0, leaf_keys=[0,1])
         # "wierd" masking of the unavailable actions

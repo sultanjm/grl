@@ -33,12 +33,10 @@ class SimpleMDP(grl.Domain):
     def reset(self):
         self.sm.state = random.sample(self.sm.states,1)[0]
     
-    def oracle(self, a, e, h, g, *args, **kwargs):
+    def oracle(self, h, *args, **kwargs):
+        g = kwargs.get('g', 0.999)
         Q = grl.Storage(1, default=0, leaf_keys=self.am.actions)
-        if e is not None:
-            s = e
-        else:
-            s = h[-1]
+        s = h[-1]
         
         if s == 's-left':
             Q['left'] = 1/(1-g)
