@@ -156,7 +156,12 @@ class Storage(collections.MutableMapping):
     def sum(self):
         if self.dimensions == 1:
             return sum(self.storage.values()) +  sum([self.default_value() for _ in range(len(self.missing_keys))])
-
+        else:
+            partial_sum = 0
+            for k in self:
+                partial_sum += self[k].sum()
+            return partial_sum
+            
     def max(self):
         if self.dimensions == 1:
             max_v = max(self.storage.values(), default=max(self.default))

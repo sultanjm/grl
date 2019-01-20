@@ -3,40 +3,45 @@ import numpy as np
 import random
 
 class SimpleMDP(grl.Domain):
-    def react(self, a, h = None):
+    def react(self, h, a):
         e = self.pm.perception(self.sm.transit(a))
         return e
 
-    def start(self, a = None):
+    def start(self, a=None, order=2):
+        self.order = order
         return self.pm.perception(self.sm.state)
 
     def setup(self):
-        self.sm.states = ['s-left', 's-right']
-        self.am.actions = ['left', 'right']
-        self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
+        self.sm.state_space = ['s-left', 's-right']
+        self.am.action_space = ['left', 'right']
+        self.sm.state = grl.epsilon_sample(self.sm.state_space)
 
-    def transition_func(self, state, action):
-        s_nxt = state
-        if state == 's-left' and action == 'left':
-            s_nxt = 's-right'
-        elif state == 's-right' and action == 'right':
-            s_nxt = 's-left'
-        return s_nxt
+    def transition_func(self, s, a):
+        s_next = s
+        if s == 's-left' and a == 'left':
+            s_next = 's-right'
+        elif s == 's-right' and a == 'right':
+            s_next = 's-left'
+        return s_next
     
-    def reward_func(self, a, e, h):
-        s = self.sm.prev_state
+    def reward_func(self, h):
+        # TODO: only synced iterations
+        assert(h.t - self.sm.hm.h.t == 1.0)
+        agent_order = (self.order - 1) if (self.order - 1) else h.steplen
+        a = h.extract(agent_order)
+        s = self.sm.hm.h[-1]
         if (s == 's-left' and a == 'left') or (s == 's-right' and a == 'right'):
             return 1
         else:
             return 0
 
     def reset(self):
-        self.sm.state = random.sample(self.sm.states,1)[0]
+        self.sm.state = grl.epsilon_sample(self.sm.state_space)
     
     def oracle(self, h, *args, **kwargs):
         g = kwargs.get('g', 0.999)
-        Q = grl.Storage(1, default=0, leaf_keys=self.am.actions)
-        s = h[-1]
+        Q = grl.Storage(1, default=0, leaf_keys=self.am.action_space)
+        s = h.extract(self.order)
         
         if s == 's-left':
             Q['left'] = 1/(1-g)
@@ -45,45 +50,99 @@ class SimpleMDP(grl.Domain):
     
         return Q
 
+    def on(self, event):
+        grl.occurrence_ratio_processor(type(self).__name__, 's-left', event)
+
+
+class DynamicKeys(grl.Domain):
+
+    def setup(self):
+        self.sm.state_space = [0, 1, 2, 3]
+        self.pm.percept_space = [':)', ':(']
+        self.am.action_space = ['x', 'y', 'z']
+        self.sm.state = self.sm.state_space[0]
+        self.optimal_actions = {0:'x', 1:'y', 2:'x', 3:'y'}
+
+    def start(self, a=None, order=2):
+        self.order = order
+        return ':('
+        
+    def react(self, h, a):
+        happy_ratio = h.stats.get(type(self).__name__, dict()).get(':)', 0.0)
+        self.sm.hm.record([self.sm.state])
+        if a == self.optimal_actions[self.sm.state]:
+            e_next = grl.epsilon_sample(self.pm.percept_space, ':)', 1 - happy_ratio)
+            if e_next == ':)':
+                self.sm.state = (self.sm.state + 1) % len(self.sm.state_space)
+        else:
+            e_next = ':('
+        return e_next
+
+    def reset(self):
+        self.sm.state = self.sm.state_space[0]
+    
+    def on(self, event):
+        grl.occurrence_ratio_processor(type(self).__name__, ':)', event)
+
+    def reward_func(self, h):
+        assert(h.t - self.sm.hm.h.t == 1.0)
+        agent_order = (self.order - 1) if (self.order - 1) else h.steplen
+        a = h.extract(agent_order)
+        s = self.sm.hm.h[-1]
+
+        if a == self.optimal_actions[s]:
+            return 1
+        else:
+            return 0
+    
+    def oracle(self, h, *args, **kwargs):
+        Q = grl.Storage(1, default=h.stats.get(type(self).__name__, dict()).get(':)', 0.0), leaf_keys=self.am.action_space)
+        if self.sm.hm.h.t == h.t:
+            Q[self.optimal_actions[self.sm.hm.h[-1]]] += 1.0
+        elif h.t - self.sm.hm.h.t == 1.0:
+            Q[self.optimal_actions[self.sm.state]] += 1.0
+        return Q
+
 class BlindMaze(grl.Domain):
-    def react(self, a, h=None):
+    def react(self, h, a):
         e = self.pm.perception(self.sm.transit(a))
         return e
         
-    def start(self, a):
+    def start(self, a=None, order=2):
+        self.order = order
         return self.pm.perception(self.sm.state)
 
     def setup(self):
         self.maze_len = self.kwargs.get('maze_len', 4)
-        self.sm.states = [(x,y) for x in range(self.maze_len) for y in range(self.maze_len)]
-        self.am.actions = ['u', 'd', 'l', 'r']
-        self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
+        self.sm.state_space = [(x,y) for x in range(self.maze_len) for y in range(self.maze_len)]
+        self.am.action_space = ['u', 'd', 'l', 'r']
+        self.sm.state = random.sample(self.sm.state_space, 1)[0]
 
-    def transition_func(self, state, action):
-        if action == 'u':
-            s_nxt = (state[0], min(state[1] + 1, self.maze_len - 1))
-        elif action == 'd':
-            s_nxt = (state[0], max(state[1] - 1, 0))
-        elif action == 'l':
-            s_nxt = (max(state[0] - 1, 0), state[1])
-        elif action == 'r':
-            s_nxt = (min(state[0] + 1, self.maze_len - 1), state[1])
+    def transition_func(self, s, a):
+        if a == 'u':
+            s_next = (s[0], min(s[1] + 1, self.maze_len - 1))
+        elif a == 'd':
+            s_next = (s[0], max(s[1] - 1, 0))
+        elif a == 'l':
+            s_next = (max(s[0] - 1, 0), s[1])
+        elif a == 'r':
+            s_next = (min(s[0] + 1, self.maze_len - 1), s[1])
         else:
-            s_nxt = state
-        return s_nxt
+            s_next = s
+        return s_next
     
-    def emission_func(self, state):
-        if state == (0,0):
+    def emission_func(self, s):
+        if s == (0,0):
             #e = ('o_o', 1)
-            e = (state, 1)
+            e = (s, 1)
             self.reset()
         else:
             #e = ('-_-', 0)
-            e = (state, 0)
+            e = (s, 0)
         return e
     
-    def reward_func(self, a, e, h):
-        return e[1]
+    def reward_func(self, h):
+        return h[-1][1]
 
     def reset(self):
-        self.sm.state = self.sm.states[np.random.choice(len(self.sm.states))]
+        self.sm.state = random.sample(self.sm.state_space, 1)[0]

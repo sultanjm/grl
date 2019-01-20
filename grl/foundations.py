@@ -4,8 +4,19 @@ import numpy as np
 import copy
 import math
 import random 
+import enum
 
-__all__ = ['GRLObject', 'Domain', 'Agent', 'BinaryMock']
+__all__ = ['GRLObject', 'Domain', 'Agent', 'BinaryMock', 'EventType', 'Event']
+
+class Event:
+    def __init__(self, event_type, data):
+        self.type = event_type
+        self.data = data
+
+class EventType(enum.Flag):
+    ADD = enum.auto()
+    REMOVE = enum.auto()
+    ALL = ADD | REMOVE
 
 class GRLObject(abc.ABC):
 
@@ -18,11 +29,12 @@ class GRLObject(abc.ABC):
             self.hm = history_mgr
         else:
             self.keep_history = True
-            self.hm = grl.HistoryManager(maxlen=self.kwargs.get('max_history', None), state_map=self.state_map)
+            self.hm = grl.HistoryManager(maxlen=self.kwargs.get('max_history', None), state_map=self.state_func)
         self.sm = grl.StateManager(self.transition_func)
         self.am = grl.ActionManager()
         self.pm = grl.PerceptManager(self.emission_func)
         self.rm = grl.RewardManager(self.reward_func)
+        self.order = self.kwargs.get('order', math.nan)
         self.setup()
     
     def stats(self):
@@ -37,8 +49,8 @@ class GRLObject(abc.ABC):
     def on(self, event):
         return
 
-    # default: state map to a '<?>' state
-    def state_map(self, a, e, h, *args, **kwargs): return '<?>'
+    # default: last percept state function
+    def state_func(self, h, *args, **kwargs): return h[-1]
 
     # default: same state transition loop
     def transition_func(self, s, a): return s
@@ -47,16 +59,16 @@ class GRLObject(abc.ABC):
     def emission_func(self, s): return s
 
     # default: zero reward function
-    def reward_func(self, a, e, h): return 0
+    def reward_func(self, h, a, e): return 0
 
 class Domain(GRLObject):
 
     @abc.abstractmethod
-    def react(self, a, h):
+    def start(self, a=None, order=1):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def start(self, a=None):
+    def react(self, h, a):
         raise NotImplementedError
 
     def oracle(self, h, *args, **kwargs):
@@ -75,29 +87,31 @@ class Agent(GRLObject):
         # WARNING! Be mindful when using oracles. They are super powerful!
         self.oracle = domain.oracle # agent has access to the oracle of the domain
         
+    @abc.abstractmethod
+    def start(self, e=None, order=0):
+        raise NotImplementedError
 
     @abc.abstractmethod
     def act(self, h):
         raise NotImplementedError
 
     @abc.abstractmethod
-    def learn(self, a, e, h):
+    def learn(self, h, a, e):
         raise NotImplementedError
     
-    @abc.abstractmethod
-    def start(self, e=None):
-        raise NotImplementedError
-
 class BinaryMock(Domain):
 
     def setup(self):
-        self.am.actions = [0, 1]
+        self.am.action_space = [0, 1]
         self.r_dummy = self.kwargs.get('r_dummy', 0.0)
         self.hm_ae = grl.HistoryManager(maxlen=self.hm.maxlen)
         self.domain = None
         self.restrict_A_cache = dict()
 
-    def start(self, a=None):
+    def start(self, a=None, order=1):
+        # set the execution order in a step e.g. in an agent initiated 
+        # iteration the oder of the agent is at order 1 and the domain on order 2
+        self.order = order
         # Design Choice: Ignore the starting binary input and 
         # take a random action on the hooked domain
         a_org = None if a == None else random.sample(self.ext_actions, 1)[0]
@@ -113,40 +127,41 @@ class BinaryMock(Domain):
             raise RuntimeError("No valid domian is provided.")    
         self.domain = domain
         # complete the action space
-        act_len = len(self.domain.am.actions)
+        act_len = len(self.domain.am.action_space)
         self.d = int(np.ceil(np.log2(act_len)))
         diff = act_len - 2**self.d
-        self.ext_actions = copy.deepcopy(self.domain.am.actions)
+        self.ext_actions = copy.deepcopy(self.domain.am.action_space)
         for _ in range(diff):
-            self.ext_actions.append(self.domain.am.actions[0])
+            self.ext_actions.append(self.domain.am.action_space[0])
         # new state space
-        self.sm.states = list(range(self.d))
-        self.sm.state = self.sm.states[0]
+        self.sm.state_space = list(range(self.d))
+        self.sm.state = self.sm.state_space[0]
         # empty set of binary actions
         self.b = list()
         self.prev_e = None
         self.restrict_A_cache.clear()
 
-    def react(self, b, h=None):
+    def react(self, h, b):
         self.b.append(b)
         self.sm.transit(b)
         if self.sm.state != 0:
             e = self.pm.perception(self.sm.state)
         else:
             a = self.inv_binary_func(self.b)
-            e = self.domain.react(a)
+            e = self.domain.react(self.hm_ae.h, a)
             self.hm_ae.record([a,e])
             self.prev_e = e
             self.b.clear()
         return e
 
     def oracle(self, h, *args, **kwargs):
-        # TODO: assert the binary history h is the transformation of h_ae
-        diff = self.d*self.hm_ae.h.t - h.t 
-        assert(diff >= 0.0)
         g = kwargs.get('g', 0.999)
         g_org = g**self.d
         kwargs['g'] = g_org
+
+        # TODO: assert the binary history h is the transformation of h_ae
+        diff = self.d*self.hm_ae.h.t - h.t 
+        assert(diff >= 0.0)
 
         dropped_h = self.hm_ae.drop(diff)
         q = self.domain.oracle(self.hm_ae.h, *args, **kwargs)
@@ -165,7 +180,7 @@ class BinaryMock(Domain):
         if self.restrict_A_cache.get(b_key, None):
             return self.restrict_A_cache[b_key]
         # expensive computation!
-        A = grl.Storage(1, default= -math.inf, leaf_keys=self.domain.am.actions)
+        A = grl.Storage(1, default= -math.inf, leaf_keys=self.domain.am.action_space)
         for a in self.ext_actions:
             bit_list = self.binary_func(a)
             for bits in bit_list:
@@ -178,24 +193,15 @@ class BinaryMock(Domain):
     def emission_func(self, s):
         return self.prev_e
 
-    def reward_func(self, a, e, h):
+    def reward_func(self, h):
         if self.sm.state:
             return self.r_dummy
         else:
-            # temporarily pop the last ae-pair
-            if len(self.hm_ae.history) > 2: # TODO: This is a hack!
-                e_org = self.hm_ae.history.pop()
-                a_org = self.hm_ae.history.pop()
-            else:
-                e_org, a_org = None, None
-            if e == None:
-                r = self.domain.rm.r(None, None, self.hm_ae.history)
-            else:
-                r = self.domain.rm.r(a_org, e_org, self.hm_ae.history)
-            # push back the temporarily popped ae-pair
-            if a_org and e_org:
-                self.hm_ae.history.append(a_org)
-                self.hm_ae.history.append(e_org)
+            diff = self.d*self.hm_ae.h.t - h.t 
+            assert(diff >= 0.0)
+            dropped_h = self.hm_ae.drop(diff)
+            r = self.domain.rm.r(self.hm_ae.history)
+            self.hm_ae.record(dropped_h)
             return r
 
     def transition_func(self, s, b):

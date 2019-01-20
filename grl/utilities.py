@@ -3,7 +3,6 @@ import enum
 import grl
 import random
 
-__all__ = ['sample', 'random_probability_matrix', 'epsilon_sample', 'optimal_policy', 'bits2int', 'int2bits']
 
 def sample(p_row):
     return np.random.choice(len(p_row), p=p_row)
@@ -44,3 +43,17 @@ def bits2int(bits):
 
 def int2bits(n):
     return [1 if b=='1' else 0 for b in bin(n)[2:]]
+
+def occurrence_ratio_processor(storage, key, event):
+    h = event.data['h']
+    update = event.data['update']
+    stats = h.stats.get(storage, dict())
+    update_t = len(update)/h.steplen
+    
+    prob = stats.get(key, 0.0)
+    if event.type == grl.EventType.ADD:
+        stats[key] = (prob*h.t + update.count(key))/(update_t + h.t)
+    if event.type == grl.EventType.REMOVE:
+        stats[key] = (prob*(h.t + update_t) - update.count(key))/h.t
+    
+    h.stats[storage] = stats

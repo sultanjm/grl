@@ -7,8 +7,8 @@ class RandomAgent(grl.Agent):
     def act(self, h):
         return grl.epsilon_sample(self.am.actions)
 
-    def learn(self, a, e, h):
-        pass
+    def learn(self, h, a, e):
+        return
 
 class GreedyQAgent(grl.Agent):
     def setup(self):
@@ -22,21 +22,22 @@ class GreedyQAgent(grl.Agent):
 
     def interact(self, domain):
         super().interact(domain)
-        self.Q.set_leaf_keys(self.am.actions)
+        self.Q.set_leaf_keys(self.am.action_space)
 
-    def start(self, e = None):
-        self.am.action = grl.epsilon_sample(self.am.actions)
+    def start(self, e=None, order=1):
+        self.order = order
+        self.am.action = grl.epsilon_sample(self.am.action_space)
         return self.am.action
 
     def act(self, h):
-        s = self.hm.mapped_state()
-        self.am.action = grl.epsilon_sample(self.am.actions, max(self.Q[s])[1], 0.1)
+        s = self.hm.state(h)
+        self.am.action = grl.epsilon_sample(self.am.action_space, max(self.Q[s])[1], 0.1)
         return self.am.action
     
-    def learn(self, a, e, h):
-        s = self.hm.mapped_state()
-        s_nxt = self.hm.mapped_state(a, e)
-        r_nxt = self.rm.r(a, e, self.hm.history)
+    def learn(self, h, a, e):
+        s = self.hm.state(h)
+        s_nxt = self.hm.state(h, extension=[a,e], index=grl.Index.NEXT)
+        r_nxt = self.rm.r(h, extension=[a,e], index=grl.Index.NEXT)
         
         self.Q[s][a] = self.Q[s][a] + self.alpha[s][a] * (r_nxt + self.g * max(self.Q[s_nxt])[0] - self.Q[s][a])
         self.alpha[s][a] = self.alpha[s][a] * 0.999
@@ -56,25 +57,26 @@ class FrequencyAgent(grl.Agent):
         self.steps = self.kwargs.get('steps', math.inf)
         self.v = grl.Storage(1, default=0)
         self.pi = grl.Storage(2, default=1)
+        self.index = 0
 
     def interact(self, domain):
         super().interact(domain)
-        self.pi.set_leaf_keys(self.am.actions)
-        self.pi.set_default(1/len(self.am.actions))
+        self.pi.set_leaf_keys(self.am.action_space)
+        self.pi.set_default(1/len(self.am.action_space))
 
     def act(self, h):
         self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=1, vi_steps=1)
         # Oracle Alert!
         s = self.hm.state(h, g=self.g, q_func=self.oracle)
-        return grl.epsilon_sample(self.am.actions, self.pi[s].argmax(), 0.1)
+        return grl.epsilon_sample(self.am.action_space, self.pi[s].argmax(), 1.0)
 
-    def learn(self, a, e, h):
+    def learn(self, h, a, e):
         # Oracle Alert!
         s = self.hm.state(h, g=self.g, q_func=self.oracle)
-        s_next = self.hm.state(h, extension=[a,e], level='next', g=self.g, q_func=self.oracle)
-
+        s_next = self.hm.state(h, extension=[a,e], index=grl.Index.NEXT, g=self.g, q_func=self.oracle)
+        r_next = self.rm.r(h, extension=[a,e], index=grl.Index.NEXT)
         # update the reward matrix
-        self.r[s][a][s_next] = (self.n[s][a][s_next]*self.r[s][a][s_next] + self.rm.r(a, e, h))/(self.n[s][a][s_next]+1)
+        self.r[s][a][s_next] = (self.n[s][a][s_next]*self.r[s][a][s_next] + r_next)/(self.n[s][a][s_next]+1)
         # update the transition matrix
         n_sum = self.n[s][a].sum()
         if n_sum: self.p[s][a] *= n_sum/(n_sum+1)
@@ -82,6 +84,15 @@ class FrequencyAgent(grl.Agent):
         # register the new input
         self.n[s][a][s_next] += 1
 
-    def start(self, e = None):
-        self.am.action = grl.epsilon_sample(self.am.actions)
+    def start(self, e=None, order=1):
+        self.order = order
+        self.am.action = grl.epsilon_sample(self.am.action_space)
         return self.am.action
+
+    def stats(self, *args, **kwargs):
+        # threshold = kwargs.get('significance_threshold', 0.1)
+        # n_total = self.n.sum()
+        # for s in n:
+        #     if n[s].sum() > threshold:
+        #         print(n[s])
+        return

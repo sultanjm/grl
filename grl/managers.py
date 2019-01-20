@@ -3,8 +3,18 @@ import itertools
 import numpy as np
 import grl
 import copy
+import enum
 
-__all__ = ['History', 'HistoryManager', 'StateManager', 'PerceptManager', 'ActionManager', 'RewardManager']
+__all__ = ['History', 'Index', 'HistoryManager', 'StateManager', 'PerceptManager', 'ActionManager', 'RewardManager']
+
+class Index(enum.Enum):
+    NEXT = enum.auto()
+    CURRENT = enum.auto()
+    RECENT = enum.auto()
+    PREVIOUS = enum.auto()
+    OLDEST = enum.auto()
+    FIRST = enum.auto()
+    ABSOLUTE = enum.auto()
 
 class History(collections.MutableSequence):
 
@@ -47,7 +57,7 @@ class History(collections.MutableSequence):
         return len(self.history) + len(self.extension)
 
     def __repr__(self):
-        return repr(self.history) + ' || ' + repr(self.extension) + ' <steps={},xsteps={},steplen={}>'.format(self.steps, self.xsteps, self.steplen)
+        return repr(self.history) + ' | ' + repr(self.extension) + ' <steps={},xsteps={},steplen={}>'.format(self.steps, self.xsteps, self.steplen)
 
     def __adjust_index__(self, index):
         if index < 0:
@@ -61,10 +71,19 @@ class History(collections.MutableSequence):
             else:
                 return self.history, index
 
+    def extract(self, order, index=Index.CURRENT):
+        # TODO: only CURRENT and PREVIOUS extractions are supported    
+        assert(order > 0 and order <= self.steplen)
+        order = order % self.steplen
+        head = int((self.t % 1) * self.steplen)
+        idx = order - head - 1
+        if order > head: idx -= self.steplen
+        if index == Index.PREVIOUS: idx -= self.steplen
+        return self[idx]
 
 class HistoryManager:
 
-    def __init__(self, state_map=lambda hm, *x, **y: '<?>', history=[], *args, **kwargs):
+    def __init__(self, state_map=lambda *x, **y: '<?>', history=[], *args, **kwargs):
         self.steplen = kwargs.get('steplen', 2)
         self.maxlen = None if not kwargs.get('maxlen', None) else self.steplen * kwargs.get('maxlen', None)
         self.history = History(history=history, maxlen=self.maxlen, steplen=self.steplen)
@@ -72,30 +91,37 @@ class HistoryManager:
         self.state_map = state_map
         self.listeners = collections.defaultdict(set)
 
-    def record(self, items):
+    def record(self, items, notify=True):
         steps = len(items) / self.steplen
+        if steps and notify: 
+            self.dispatch(grl.EventType.ADD, {'h':self.history, 'update':items})
         for item in items:
             self.history.append(item)
         self.history.steps += steps
+
         return self
 
-    def extension(self, items):
+    def extend(self, items, notify=True):
         steps = len(items) / self.steplen
+        if steps and notify:
+            self.dispatch(grl.EventType.ADD, {'h':self.history, 'update':items})
         for item in items:
             self.history.extension.append(item)
         self.history.xsteps += steps
         return self
 
-    def drop(self, steps=1.0):
+    def drop(self, steps=1.0, notify=True):
         if not (float(steps) * self.steplen).is_integer():
             raise RuntimeError("unable to drop {} elements.".format(steps * self.steplen))
         dropped = list()
         for _ in range(int(steps*self.steplen)):
             dropped.append(self.history.pop())
         self.history.steps -= steps
+        if dropped and notify:
+            self.dispatch(grl.EventType.REMOVE, {'h':self.history, 'update':dropped[::-1]})
         return dropped[::-1]
 
-    def xdrop(self, steps=None):
+    def xdrop(self, steps=None, notify=True):
         if steps is None: steps = self.history.xsteps
         dropped = list()
         if not (float(steps) * self.steplen).is_integer():
@@ -103,14 +129,13 @@ class HistoryManager:
         for _ in range(int(steps*self.steplen)):
             dropped.append(self.history.extension.pop())
         self.history.xsteps -= steps
+        if dropped and notify: 
+            self.dispatch(grl.EventType.REMOVE, {'h':self.history, 'update':dropped[::-1]})
         return dropped[::-1]
 
     def xmerge(self):
         if self.history.extension:
-            for arg in self.history.extension:
-                self.history.append(arg)
-            self.history.steps += self.history.xsteps
-            self.xdrop(self.history.xsteps)
+            self.record(self.xdrop(notify=False), notify=False)
         else:
             raise ValueError("The extension is empty.")
 
@@ -125,25 +150,13 @@ class HistoryManager:
         self.history = history
 
     def state(self, history, *args, **kwargs):
-        hm = self.assert_hm(history)
+        index = kwargs.get('index', Index.CURRENT)
         extension = kwargs.get('extension', list())
-        level = kwargs.get('level', 'current')
-        dropped_h = list()
-        dropped_xtn = list()
+        hm = self.assert_hm(history)
 
-        if level == 'next':
-            dropped_xtn = hm.xdrop()
-            hm.extension(dropped_xtn).extension(extension)
-        elif level == 'previous':
-            dropped_xtn = hm.xdrop(1.0)
-            if not dropped_xtn:
-                dropped_h = hm.drop(1.0)
-
+        change = hm.amend(history, index, extension)
         s = self.state_map(history, *args, **kwargs)
-
-        hm.xdrop()
-        hm.record(dropped_h).extension(dropped_xtn)
-
+        hm.mend(change)
         return s
 
     def assert_hm(self, history):
@@ -153,61 +166,92 @@ class HistoryManager:
             hm.history = history
         return hm
 
-    def register(self, obj, event_name='update'):
-        self.listeners[event_name].add(obj)
+    def register(self, obj, event_type=grl.EventType.ALL):
+        self.listeners[event_type].add(obj)
     
-    def deregister(self, obj, event_name='update'):
-        self.listeners[event_name].discard(obj)
+    def deregister(self, obj, event_type=grl.EventType.ALL):
+        self.listeners[event_type].discard(obj)
     
-    def dispatch(self, event):
-        for obj in self.listeners[event['name']]:
-            obj.on(event)
-   
+    def dispatch(self, event_type, data):
+        evt = grl.Event(event_type, data)
+        for obj in self.listeners[event_type]:
+            obj.on(evt)
+
+    def amend(self, h, index=Index.CURRENT, extension=list()):
+        old_h = list()
+        old_xtn = list()
+        # prepare history for non-current indexes
+        if index == Index.NEXT:
+            old_xtn = self.xdrop()
+            self.extend(old_xtn).extend(extension)
+        elif index == Index.PREVIOUS:
+            old_xtn = self.xdrop(1.0)
+            if not old_xtn:
+                old_h = self.drop(1.0)
+        return [old_h, old_xtn]
+
+    def mend(self, change):
+        old_h, old_xtn = change
+        # undo the changes in the history
+        self.xdrop()
+        self.record(old_h).extend(old_xtn)
+        return self
+
+
 class PerceptManager:
 
-    def __init__(self, emission_func=lambda s : s, percepts=None, percept=None):
+    def __init__(self, emission_func=lambda s : s, percept_space=None, e=None):
         self.emission_func = emission_func
-        self.percepts = percepts
-        self.percept = percept
+        self.percept_space = percept_space
+        self.percept = e
 
-    def perception(self, state):
+    def perception(self, s):
         if not callable(self.emission_func):
             raise RuntimeError("No valid percept function is provided.")      
-        return self.emission_func(state)
+        return self.emission_func(s)
 
 
 class StateManager: 
 
-    def __init__(self, transition_func=lambda s,a: s, start_state=None, states=None):
+    def __init__(self, transition_func=lambda s,a: s, state_space=None, *args, **kwargs):
         self.transition_func = transition_func
-        self.state = start_state
-        self.prev_state = None
-        self.states = states
+        self.hm = HistoryManager(maxlen=kwargs.get('max_history', 1), steplen=1)
+        self.state = kwargs.get('start_state', None)
+        self.state_space = state_space
 
-    def simulate(self, action, state=None):
-        if state is None:
-            state = self.state
+    def simulate(self, a, s=None):
+        if s is None:
+            s = self.state
         if not callable(self.transition_func): 
             raise RuntimeError("No valid transition function is provided.")
-        return self.transition_func(state, action)
+        return self.transition_func(s, a)
 
-    def transit(self, action):
-        if action is not None:
-            self.prev_state = self.state
-            self.state = self.simulate(action)
+    def transit(self, a):
+        if a is not None:
+            self.hm.record([self.state])
+            self.state = self.simulate(a)
         return self.state
 
 
 class ActionManager:
 
-    def __init__(self, actions=None, action=None):
-        self.actions = actions
-        self.action = action
-
+    def __init__(self, action_space=None, a=None):
+        self.action_space = action_space
+        self.action = a
+    
 class RewardManager:
 
-    def __init__(self, reward_func=lambda a, e, h: 0):
+    def __init__(self, reward_func=lambda h, *x, **y: 0):
         self.reward_func = reward_func
+        self.hm = grl.HistoryManager()
 
-    def r(self, a, e, h):
-        return self.reward_func(a, e, h)
+    def r(self, h, *args, **kwargs):
+        self.hm.h = h
+        extension = kwargs.get('extension', list())
+        index = kwargs.get('index', Index.CURRENT)
+        change = self.hm.amend(h, index, extension)
+
+        reward = self.reward_func(h)
+
+        self.hm.mend(change)
+        return reward
