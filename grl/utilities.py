@@ -44,16 +44,18 @@ def bits2int(bits):
 def int2bits(n):
     return [1 if b=='1' else 0 for b in bin(n)[2:]]
 
-def occurrence_ratio_processor(storage, key, event):
+def occurrence_ratio_processor(storage, key, event, min_ratio=0.0):
     h = event.data['h']
     update = event.data['update']
     stats = h.stats.get(storage, dict())
     update_t = len(update)/h.steplen
     
-    prob = stats.get(key, 0.0)
+    prob = stats.get(key, min_ratio)
     if event.type == grl.EventType.ADD:
         stats[key] = (prob*h.t + update.count(key))/(update_t + h.t)
     if event.type == grl.EventType.REMOVE:
         stats[key] = (prob*(h.t + update_t) - update.count(key))/h.t
+    
+    stats[key] = max(stats[key], min_ratio)
     
     h.stats[storage] = stats

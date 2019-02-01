@@ -53,6 +53,77 @@ class SimpleMDP(grl.Domain):
     def on(self, event):
         grl.occurrence_ratio_processor(type(self).__name__, 's-left', event)
 
+class SlipperyHill(grl.Domain):
+    def setup(self):
+        self.sm.state_space = [0, 1]
+        self.pm.percept_space = ['@', '#']
+        self.am.action_space = ['up', 'stay', 'down']
+        self.sm.state = self.sm.state_space[0]
+        self.optimal_actions = {0:'up', 1:'stay'}
+        self.theta = 0.999
+        self.C0 = 0.0001
+        self.C1 = 1.0
+        self.pmin = 0.001
+
+    def start(self, a=None, order=2):
+        self.order = order
+        return '@'
+        
+    def react(self, h, a):
+        bang_ratio = h.stats.get(type(self).__name__, dict()).get('#', self.pmin)
+        self.sm.hm.record([self.sm.state])
+        if a == self.optimal_actions[self.sm.state]:
+            e_next = grl.epsilon_sample(self.pm.percept_space, '#', 1 - bang_ratio)
+            if (e_next == '#' and self.sm.state == 0) or (e_next == '@' and self.sm.state == 1):
+                self.sm.state = (self.sm.state + 1) % len(self.sm.state_space)
+        else:
+            self.sm.state = 0
+            e_next = '@'
+        return e_next
+
+    def reset(self):
+        self.sm.state = self.sm.state_space[0]
+    
+    def on(self, event):
+        grl.occurrence_ratio_processor(type(self).__name__, '#', event, self.pmin)
+
+    def reward_func(self, h):
+        assert(h.t - self.sm.hm.h.t == 1.0)
+        agent_order = (self.order - 1) if (self.order - 1) else h.steplen
+        p_h = h.stats.get(type(self).__name__, dict()).get('#', self.pmin)
+        a = h.extract(agent_order)
+        s = self.sm.hm.h[-1]
+        s_next = self.sm.state
+        odd_factor = self.theta*(self.C1-self.C0)/(1-self.theta)
+        normalizer = (2-self.pmin)*odd_factor + 1/self.pmin #1
+        r_f_0 = odd_factor - p_h * odd_factor #0 - p_h * odd_factor
+        r_f_1 = 2*odd_factor - p_h * odd_factor #odd_factor - p_h * odd_factor
+
+        if s == 0 and a != self.optimal_actions[0]:
+            return r_f_0/normalizer
+        if s == 1 and a != self.optimal_actions[1]:
+            return r_f_1/normalizer
+        
+        r_optimal = {
+            (0, self.optimal_actions[0], 0): r_f_0/normalizer,
+            (0, self.optimal_actions[0], 1): (r_f_0 + (self.C0/p_h))/normalizer,
+            (1, self.optimal_actions[1], 0): r_f_1/normalizer,
+            (1, self.optimal_actions[1], 1): (r_f_1 + (self.C1/p_h))/normalizer,
+        }
+        return r_optimal.get((s,a,s_next), 0)
+    
+    def oracle(self, h, *args, **kwargs):
+        Q = grl.Storage(1, default=self.theta/(1-self.theta), leaf_keys=self.am.action_space)
+        if self.sm.hm.h.t == h.t:
+            s = self.sm.hm.h[-1]
+        elif h.t - self.sm.hm.h.t == 1.0:
+            s = self.sm.state
+        if s == 0:
+            Q *= self.C0
+            Q[self.optimal_actions[0]] /= self.theta
+        else:
+            Q[self.optimal_actions[1]] /= self.theta
+        return Q
 
 class DynamicKeys(grl.Domain):
 

@@ -3,9 +3,12 @@ import math
 
 def VITabular(T, r, V=None, policy=None, **kwargs):
     steps = kwargs.get('steps', math.inf)
+    normalize = kwargs.get('normalize', False)
     g = kwargs.get('g', 0.999)
     eps = kwargs.get('eps', 1e-6)
-    
+
+    norm_factor = 1 - g if normalize else 1
+
     if not isinstance(V, grl.Storage):
         V = grl.Storage(1, default=0, leaf_keys=T.keys())
 
@@ -15,9 +18,9 @@ def VITabular(T, r, V=None, policy=None, **kwargs):
         for s in T:
             v_s_old = V[s]
             if not policy:
-                V[s] = max([(r[s][a] + g * V).avg(T[s][a]) for a in T[s]])
+                V[s] = max([(norm_factor * r[s][a] + g * V).avg(T[s][a]) for a in T[s]])
             else:
-                V[s] = (policy[s] * {a:(r[s][a] + g * V).avg(T[s][a]) for a in T[s]}).sum()
+                V[s] = (policy[s] * {a:(norm_factor * r[s][a] + g * V).avg(T[s][a]) for a in T[s]}).sum()
             delta = max(delta, abs(v_s_old - V[s]))
         if delta < eps:
             done = True
@@ -29,6 +32,7 @@ def PITabular(T, r, V=None, policy=None, **kwargs):
     vi_steps = kwargs.get('vi_steps', math.inf)
     g = kwargs.get('g', 0.999)
     eps = kwargs.get('eps', 1e-6)
+    normalize = kwargs.get('normalize', False)
 
     if not isinstance(policy, grl.Storage):
         actions = set(a for s in T.keys() for a in T[s].keys())
@@ -39,7 +43,7 @@ def PITabular(T, r, V=None, policy=None, **kwargs):
 
     stable = False
     while steps and not stable:
-        V = VITabular(T, r, V, policy, steps=vi_steps, g=g, eps=eps)
+        V = VITabular(T, r, V, policy, steps=vi_steps, g=g, eps=eps, normalize=normalize)
         stable = True
         for s in T:
             policy_s_old = policy[s]

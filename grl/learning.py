@@ -104,7 +104,7 @@ class Storage(collections.MutableMapping):
         if not isinstance(other, collections.Mapping):
             for k in self.storage:
                 data[k] = operation(self[k], other)
-                missing = copy.deepcopy(self.missing_keys)
+            missing = copy.deepcopy(self.missing_keys)
             for k in missing:
                 data[k] = operation(self[k], other)
         else:
@@ -161,7 +161,7 @@ class Storage(collections.MutableMapping):
             for k in self:
                 partial_sum += self[k].sum()
             return partial_sum
-            
+
     def max(self):
         if self.dimensions == 1:
             max_v = max(self.storage.values(), default=max(self.default))
@@ -213,7 +213,7 @@ class Storage(collections.MutableMapping):
                 if self.leaf_keys:
                     q = dict.fromkeys(self.leaf_keys, 0)
                     q.update(p)
-                    p = q
+                    return (self * q).sum()
                 return (self * p).sum()
             else:
                 return self.sum() / (len(self) + len(self.missing_keys))

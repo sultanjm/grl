@@ -2,36 +2,8 @@ import grl
 import numpy as np
 import collections
 from examples import *
-
-
-p = grl.Storage(3, leaf_keys=[0,1])
-p[1]['a'][0] = 1
-p[1]['a'][1] = 1
-p[1]['b'][0] = 1
-p[1]['b'][1] = 1
-p[2]['a'][0] = 1
-p[2]['a'][1] = 1
-p[2]['b'][0] = 1
-p[2]['b'][1] = 1
-assert(p[1]['a'].sum() == 2)
-assert(p[1]['b'].sum() == 2)
-assert(p.sum() == 8)
-assert(p[1].sum() == 4)
-assert(p[2].sum() == 4)
-print(p.sum())
-# hm = grl.HistoryManager()
-# hm.record(['a',1,'b',2])
-# assert(hm.h.extract(1) == 'b')
-# assert(hm.h.extract(2) == 2)
-# hm.record(['c',3,'d',4])
-# assert(hm.h.extract(1, grl.Index.PREVIOUS) == 'c')
-# assert(hm.h.extract(2, grl.Index.PREVIOUS) == 3)
-# hm.extend('e')
-# assert(hm.h.extract(1) == 'e')
-# assert(hm.h.extract(2) == 4)
-# assert(hm.h.extract(1, grl.Index.PREVIOUS) == 'd')
-# assert(hm.h.extract(2, grl.Index.PREVIOUS) == 3)
-# hm.extend([5])
+import time
+import datetime
 
 def phi_extreme_a(h, *args, **kwargs):
     q_func = kwargs.get('q_func', None)
@@ -59,12 +31,13 @@ def phi_last_percept(h, *args, **kwargs):
     return h[-1]
 
 
-history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_q)
+history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_va)
 #domain = BlindMaze(history_mgr, maze_len=2)
 #domain = SimpleMDP(history_mgr)
-domain = DynamicKeys(history_mgr)
+domain = SlipperyHill(history_mgr)
+#domain = DynamicKeys(history_mgr)
 #agent = RandomAgent(history_mgr)
-agent = FrequencyAgent(history_mgr)
+agent = FrequencyAgent(history_mgr, exploration_factor=0.1, discount_factor=0.999)
 #agent = GreedyQAgent(history_mgr, value_function_persist=False, exploration_factor=0.3)
 
 # o_domain = domain
@@ -86,11 +59,20 @@ e = domain.start(a)
 history_mgr.record([a,e])
 
 h = history_mgr.h
-for t in range(10000):
+T = 100000
+running_time = 0.0
+t0 = time.time()
+for t in range(T + 1):
     a = agent.act(h)
     e = domain.react(h, a)
     agent.learn(h, a, e)
     history_mgr.record([a,e])
+    if t/T*100000 % 1 == 0.0:
+        t1 = time.time()
+        running_time += t1-t0
+        print("\r{:.2f}% Complete - Elapsed: {}, Remaining: {}".format(t/T*100, datetime.timedelta(seconds=running_time), datetime.timedelta(seconds=running_time*(T-t)/(t+1))), end='')
+        t0 = time.time()
+print('\n')
 
 print(agent.v)
 print(agent.p)

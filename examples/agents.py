@@ -53,6 +53,7 @@ class FrequencyAgent(grl.Agent):
         self.r = grl.Storage(3, default=0)
         self.p = grl.Storage(3, default=0)
         self.g = self.kwargs.get('discount_factor', 0.999)
+        self.xpl = self.kwargs.get('exploration_factor', 0.1)
         self.eps = self.kwargs.get('tolerance', 1e-6)
         self.steps = self.kwargs.get('steps', math.inf)
         self.v = grl.Storage(1, default=0)
@@ -68,7 +69,7 @@ class FrequencyAgent(grl.Agent):
         self.pi, self.v = grl.PITabular(self.p, self.r, self.v, self.pi, g=self.g, steps=1, vi_steps=1)
         # Oracle Alert!
         s = self.hm.state(h, g=self.g, q_func=self.oracle)
-        return grl.epsilon_sample(self.am.action_space, self.pi[s].argmax(), 1.0)
+        return grl.epsilon_sample(self.am.action_space, self.pi[s].argmax(), self.xpl)
 
     def learn(self, h, a, e):
         # Oracle Alert!
@@ -90,9 +91,9 @@ class FrequencyAgent(grl.Agent):
         return self.am.action
 
     def stats(self, *args, **kwargs):
-        # threshold = kwargs.get('significance_threshold', 0.1)
-        # n_total = self.n.sum()
-        # for s in n:
-        #     if n[s].sum() > threshold:
-        #         print(n[s])
-        return
+        threshold = kwargs.get('significance_threshold', 0.1)
+        n_total = self.n.sum()
+        for s in self.n:
+            print("{} = {:2.2f}%".format(s, 100*self.n[s].sum()/n_total))
+            # if self.n[s].sum()/n_total > threshold:
+            #     print("{} = {} {} {} {}".format(s, self.n[s].sum()/n_total, self.p[s], self.r[s], self.pi[s]))
