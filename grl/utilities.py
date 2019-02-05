@@ -17,6 +17,7 @@ def random_probability_matrix(dim1=2, dim2=4, repeat_second_dimension=True):
     else:
         T = np.random.rand(dim1, dim2)
     # WARNING! This code is not robust as, rarely, all the elements in a row can be zero
+    T = T + (1.0-np.amax(T))
     T = T / T.sum(axis=-1, keepdims=True)
     return T
 
