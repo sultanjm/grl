@@ -19,11 +19,18 @@ class EventType(enum.Flag):
     ALL = ADD | REMOVE
 
 class GRLObject(abc.ABC):
+    '''
+    General Reinforcement Learning Object, GRLObject is 
+    the class which will form the basis of our 
+    two important objects, Domain and Agent.
+    '''
 
     def __init__(self, history_mgr=None, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
 
+        # If the history_mgr belongs to the HistoryManager class then
+        # store the history_mgr as hm, else create a new HistoryManager instance
         if isinstance(history_mgr, grl.HistoryManager):
             self.keep_history = False
             self.hm = history_mgr
@@ -62,6 +69,12 @@ class GRLObject(abc.ABC):
     def reward_func(self, h, a, e): return 0
 
 class Domain(GRLObject):
+    '''
+    Domain is a General Reinforcement Learning Object, which also
+    has a react function with inputs of Agents action a and a history h and
+    a start function which has input of the Agents first action a, or None if the 
+    agent does not act before the environment.
+    '''
 
     @abc.abstractmethod
     def start(self, a=None, order=1):
@@ -75,11 +88,19 @@ class Domain(GRLObject):
         raise NotImplementedError
 
 class Agent(GRLObject):
+    '''
+    Agent is a General Reinforcement Learning Object, which also
+    has an interact function to interact with the domain, 
+    an act function to produce an action from inputs of history h,
+    a learn function with inputs of the previous action a, observation e, and history h,
+    and a start function which inputs the first observation from the environment e, or None if the 
+    agent goes first.
+    '''
    
     # default: interacting with only one domain
     def interact(self, domain):
         if not isinstance(domain, Domain):
-            raise RuntimeError("No valid domian is provided.")
+            raise RuntimeError("No valid domian is provided.")    
         self.am = domain.am # agent knows the available actions in the domain
         self.pm = domain.pm # agent knows the receivable percepts from the domain
         self.rm = domain.rm # agent knows the true reward function of the domain  
@@ -207,16 +228,11 @@ class BinaryMock(Domain):
     def transition_func(self, s, b):
         return (s + 1) % self.d
 
-    # this is not exactly a function (returns a list of bits)
     def binary_func(self, a):
-        indices = [i for i, x in enumerate(self.ext_actions) if x == a]
-        b_list = list()
-        for i in indices:
-            b = grl.int2bits(i)
-            while len(b) < self.d: 
-                b.append(0)
-            b_list.append(b)
-        return b_list
+        b = grl.int2bits(a)
+        while len(b) < self.d: 
+            b.append(0)
+        return b
 
     def inv_binary_func(self, b):
         return self.ext_actions[grl.bits2int(b)]

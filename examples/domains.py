@@ -1,6 +1,5 @@
 import grl
 import numpy as np
-import random
 
 class SimpleMDP(grl.Domain):
     def react(self, h, a):
