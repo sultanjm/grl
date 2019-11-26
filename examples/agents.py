@@ -15,10 +15,10 @@ class GreedyQAgent(grl.Agent):
         self.epsilon = self.kwargs.get('exploration_factor', 0.1)
         self.g = self.kwargs.get('discount_factor', 0.999)
         self.Q = grl.Storage(dimensions=2, 
-                             default_range=self.kwargs.get('value_function_init', (0,1)), 
+                             default=self.kwargs.get('value_function_init', (0,1)), 
                              persist=self.kwargs.get('value_function_persist', False))
         self.alpha = grl.Storage(dimensions=2, 
-                                 default_values=self.kwargs.get('learning_rate_init', 0.999))
+                                 default=self.kwargs.get('learning_rate_init', 0.999))
 
     def interact(self, domain):
         super().interact(domain)

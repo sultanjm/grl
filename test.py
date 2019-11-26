@@ -26,12 +26,20 @@ def phi_extreme_q(h, *args, **kwargs):
     s = tuple(q[k] for k in sorted(q))
     return s
 
+def phi_extreme_nq(h, *args, **kwargs):
+    eps = kwargs.get('eps', 0.0001)
+    q_func = kwargs.get('q_func', None)
+    q = q_func(h, *args, **kwargs)
+    q = (q / q.max()) // eps
+    s = tuple(q[k] for k in sorted(q))
+    return s
+
 def phi_last_percept(h, *args, **kwargs):
     # extract last percept
     return h[-1]
 
 
-history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_va)
+history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_nq)
 #domain = BlindMaze(history_mgr, maze_len=2)
 #domain = SimpleMDP(history_mgr)
 domain = SlipperyHill(history_mgr)
@@ -59,7 +67,7 @@ e = domain.start(a)
 history_mgr.record([a,e])
 
 h = history_mgr.h
-T = 100000
+T = 1000
 running_time = 0.0
 t0 = time.time()
 for t in range(T + 1):

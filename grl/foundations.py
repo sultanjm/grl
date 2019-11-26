@@ -18,36 +18,57 @@ class EventType(enum.Flag):
     REMOVE = enum.auto()
     ALL = ADD | REMOVE
 
-class GRLObject(abc.ABC):
 
+'''
+This is the root object in the framework. All objects are extended from it.
+It contains the basic interface required to make a functional framework.
+'''
+class GRLObject(abc.ABC):
+    # the object may receive a history manager, arguments, and key-valued arguments
     def __init__(self, history_mgr=None, *args, **kwargs):
         self.args = args
         self.kwargs = kwargs
-
+        # check if the object is responsible to keep the history of its interaction
         if isinstance(history_mgr, grl.HistoryManager):
+            # an external history manager is provided, so no need to keep history in the object
             self.keep_history = False
             self.hm = history_mgr
         else:
+            # the object will keep its own history
             self.keep_history = True
+            # the initiated history manager uses the internal state_func to get states from histories
             self.hm = grl.HistoryManager(maxlen=self.kwargs.get('max_history', None), state_map=self.state_func)
         self.sm = grl.StateManager(self.transition_func)
         self.am = grl.ActionManager()
         self.pm = grl.PerceptManager(self.emission_func)
         self.rm = grl.RewardManager(self.reward_func)
+        # the order is important if the objects are interacting in a sequence
         self.order = self.kwargs.get('order', math.nan)
+        # call the setup function for any object-dependent user-specified configurations
+        # from a user perspective, setup() is the entry point of an object
+        # the user should not use the internal __init__
         self.setup()
     
+    # first (auto) function call after __init__
+    # the user should use this "public" function as an initialization function instead of __init__
+    def setup(self): 
+        return
+
+    # provides statistics about the object in an unspecified format
+    # TODO: use a well-specified format for stats
     def stats(self):
         raise NotImplementedError
 
+    # reset the "state" of the object
     def reset(self):
         return
-
-    def setup(self): 
-        return
     
+    # event handler of the object
     def on(self, event):
         return
+
+    # the following are essential function pointers
+    # we use *_func to specify such procedures
 
     # default: last percept state function
     def state_func(self, h, *args, **kwargs): return h[-1]
@@ -61,16 +82,26 @@ class GRLObject(abc.ABC):
     # default: zero reward function
     def reward_func(self, h, a, e): return 0
 
-class Domain(GRLObject):
 
+'''
+Domain is extended from GRLObject. This is one of the core objects of the framework.
+'''
+class Domain(GRLObject):
+    # in addition to the interface provided by GRLObject
+    # the domain object provides the following abstract functions
+
+    # this function "activates" the object
     @abc.abstractmethod
     def start(self, a=None, order=1):
         raise NotImplementedError
 
+    # specify how the domain should react to an action at a certain history
     @abc.abstractmethod
     def react(self, h, a):
         raise NotImplementedError
 
+    # the oracle of the domain provides "essential" information, e.g. optimal action or Q-function
+    # TODO: specify the oracle interface
     def oracle(self, h, *args, **kwargs):
         raise NotImplementedError
 
@@ -168,7 +199,7 @@ class BinaryMock(Domain):
         self.hm_ae.record(dropped_h)
 
         q_bin = grl.Storage(1, default=0, leaf_keys=[0,1])
-        # "wierd" masking of the unavailable actions
+        # "weird" masking of the unavailable actions
         # moves the action-values of the unavailable actions to -inf
         q_bin[0] = (q + self.restricted_action_space(self.b, 0)).max()
         q_bin[1] = (q + self.restricted_action_space(self.b, 1)).max()
