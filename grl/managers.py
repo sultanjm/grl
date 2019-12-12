@@ -19,13 +19,14 @@ class Index(enum.Enum):
 class History(collections.MutableSequence):
 
     def __init__(self, *args, **kwargs):
-        self.history = collections.deque(kwargs.get('history', list()), kwargs.get('maxlen', None))
-        self.extension = list()
-        self.steps = 0.0
-        self.xsteps = 0.0
-        self.steplen = kwargs.get('steplen', 1)
+        self.history = collections.deque(kwargs.get('history', list()), kwargs.get('maxlen', None)) # dynamic queue (default length: None:maxlen)
+        self.extension = list() # temporary extension of the history
+        self.steps = 0.0 # (fractional) steps of history
+        self.xsteps = 0.0 # (fractional) steps of extended history
+        self.steplen = kwargs.get('steplen', 1) # length of a step (default: 1:steplen)
         self.stats = kwargs.get('stats', dict())
 
+    # return the current history time step
     @property
     def t(self):
         return self.steps + self.xsteps
@@ -35,6 +36,7 @@ class History(collections.MutableSequence):
         storage, index = self.__adjust_index__(index)
         return storage[index]
 
+    # iterate over the history first then extension
     def __iter__(self):
         for v in self.history:
             yield v
