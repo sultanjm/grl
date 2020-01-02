@@ -39,7 +39,7 @@ def phi_last_percept(h, *args, **kwargs):
     return h[-1]
 
 
-history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_nq)
+history_mgr = grl.HistoryManager(maxlen=10, state_map=phi_extreme_va)
 #domain = BlindMaze(history_mgr, maze_len=2)
 #domain = SimpleMDP(history_mgr)
 domain = SlipperyHill(history_mgr)

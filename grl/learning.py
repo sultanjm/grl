@@ -3,6 +3,7 @@ import collections
 import numpy as np
 import random
 import copy
+import math
 
 __all__ = ['Storage']
 
@@ -168,6 +169,11 @@ class Storage(collections.MutableMapping):
             if len(self.missing_keys) and max_v < max(self.default):
                 max_v = max(self.default)
             return max_v
+        else:
+            max_v = -math.inf
+            for k in self:
+                max_v = max(self[k].max(), max_v)
+            return max_v
     
     def argmax(self):
         if self.dimensions == 1:
@@ -184,6 +190,11 @@ class Storage(collections.MutableMapping):
             min_v = min(self.storage.values(), default=min(self.default))
             if len(self.missing_keys) and min_v > min(self.default):
                 min_v = min(self.default)
+            return min_v
+        else:
+            min_v = math.inf
+            for k in self:
+                min_v = max(self[k].min(), min_v)
             return min_v
     
     def argmin(self):

@@ -66,3 +66,22 @@ class StorageTestCase(unittest.TestCase):
         a[1][2][1] = 5
         a[1][2][2]
         self.assertEqual(len(a[1][2]), 3)
+
+    def test_nested_sum(self):
+        a = grl.Storage(dimensions=3, persist=True, default=0)
+        a[1][2][3] = 2
+        a[1][1][1] = 5
+        a[1][2][2] = 2
+        self.assertEqual(a[2].sum(), 0)
+        self.assertEqual(a[1].sum(), 9)
+        self.assertEqual(a[1][2].sum(), 4)
+
+    def test_nested_max(self):
+        a = grl.Storage(dimensions=3, persist=True, default=0)
+        a[1][2][3] = 2
+        a[1][1][1] = 5
+        a[1][2][2] = 1
+        a[2][1][3] = 3
+        self.assertEqual(a[2].max(), 3)
+        self.assertEqual(a[1].max(), 5)
+        self.assertEqual(a[1][2].max(), 2)
