@@ -1,2 +1,2 @@
-# grl-framework
-This is a generic reinforcement learning framework. At the moment, only finite action spaces are allowed.
+# hirarchical-arl
+This is a hirarchical abstraction reinforcement learning framework. At the moment, only finite action spaces are allowed.
