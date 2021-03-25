@@ -1,2 +1,2 @@
-# hirarchical-arl
-This is a hirarchical abstraction reinforcement learning framework. At the moment, only finite action spaces are allowed.
+# hierarchical-arl
+This is a hierarchical abstraction reinforcement learning framework. At the moment, only finite action spaces are allowed.
